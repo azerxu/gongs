@@ -30,7 +30,17 @@ func Xopen(filename string) (io.ReadCloser, error) {
 	return file, nil
 }
 
-func Xcreate(filename, mode string) (io.WriteCloser, error) {
+func Xcreate(args ...string) (io.WriteCloser, error) {
+	filename := "-"
+	mode := "a"
+	switch l := len(args); {
+	case l > 1:
+		mode = args[1]
+		fallthrough
+	case l > 0:
+		filename = args[0]
+	}
+
 	if filename == "-" {
 		return os.Stdout, nil
 	} else if filename == "@" {
