@@ -32,7 +32,7 @@ func Xopen(filename string) (io.ReadCloser, error) {
 
 func Xcreate(args ...string) (io.WriteCloser, error) {
 	filename := "-"
-	mode := "a"
+	mode := "w"
 	switch l := len(args); {
 	case l > 1:
 		mode = args[1]
