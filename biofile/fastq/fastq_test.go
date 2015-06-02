@@ -191,11 +191,9 @@ func Test_Load_nil(t *testing.T) {
 }
 
 func Test_Loads_txt(t *testing.T) {
-	create_test_fastq_file(test_fq_filename + "1")
-	create_test_fastq_file(test_fq_filename + "2")
-	// defer os.Remove(test_fq_filename + "1")
-	// defer os.Remove(test_fq_filename + "2")
-	fqs, err := Loads(test_fq_filename+"1", test_fq_filename+"2")
+	create_test_fastq_file(test_fq_filename)
+	defer os.Remove(test_fq_filename)
+	fqs, err := Loads(test_fq_filename, test_fq_filename)
 	if err != nil {
 		t.Fail()
 	}
