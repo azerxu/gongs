@@ -10,11 +10,15 @@ type Pair struct {
 	Read2 *Fastq
 }
 
+func (p Pair) String() string {
+	return fmt.Sprintf("%s\n%s", p.Read1, p.Read2)
+}
+
 type FastqPairFile struct {
-	Filename1 string
-	Filename2 string
-	file1     *FastqFile
-	file2     *FastqFile
+	Name1 string
+	Name2 string
+	file1 *FastqFile
+	file2 *FastqFile
 }
 
 func (pairfile *FastqPairFile) Close() error {
@@ -57,10 +61,10 @@ func OpenPair(filename1, filename2 string) (*FastqPairFile, error) {
 		return nil, err
 	}
 	return &FastqPairFile{
-		Filename1: filename1,
-		Filename2: filename2,
-		file1:     file1,
-		file2:     file2,
+		Name1: filename1,
+		Name2: filename2,
+		file1: file1,
+		file2: file2,
 	}, nil
 }
 
