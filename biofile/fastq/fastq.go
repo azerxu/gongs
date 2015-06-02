@@ -169,8 +169,8 @@ func Loads(filenames ...string) (<-chan *Fastq, error) {
 	go func(ch chan *Fastq, fqfiles []*FastqFile) {
 		wg := &sync.WaitGroup{}
 		for _, fqfile := range fqfiles {
+			wg.Add(1)
 			go func(ch chan *Fastq, fqfile *FastqFile, wg *sync.WaitGroup) {
-				wg.Add(1)
 				defer fqfile.Close()
 				for fq := range fqfile.Load() {
 					ch <- fq
