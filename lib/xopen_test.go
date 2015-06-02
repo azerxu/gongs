@@ -162,7 +162,17 @@ func Test_Xcreate_file_stderr(t *testing.T) {
 
 func Test_Xcreate_cant_create_file(t *testing.T) {
 	_, err := Xcreate("/xopen")
+	t.Log(err)
 	if err == nil {
 		t.Fail()
 	}
+}
+
+func Test_Xopen_file_nil(t *testing.T) {
+	_, err := Xopen("tt")
+	t.Log(err)
+	if err == nil {
+		t.Fail()
+	}
+
 }
