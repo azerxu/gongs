@@ -49,7 +49,7 @@ func Xcreate(args ...string) (io.WriteCloser, error) {
 
 	flag := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
 	if mode == "a" {
-		flag = os.O_APPEND | os.O_CREATE | os.O_TRUNC
+		flag = os.O_RDWR | os.O_APPEND | os.O_CREATE | os.O_TRUNC
 	}
 
 	file, err := os.OpenFile(filename, flag, 0644)
