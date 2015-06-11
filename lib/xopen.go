@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// Xopen open gzip/stdin/txtfile as io.ReadCloser
 func Xopen(filename string) (io.ReadCloser, error) {
 	if filename == "-" {
 		return os.Stdin, nil
@@ -30,6 +31,7 @@ func Xopen(filename string) (io.ReadCloser, error) {
 	return file, nil
 }
 
+// Xcreate create file in gzip/stdout/txtfile as io.WriteCloser
 func Xcreate(args ...string) (io.WriteCloser, error) {
 	filename := "-"
 	mode := "w"
