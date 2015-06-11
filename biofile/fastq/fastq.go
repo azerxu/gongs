@@ -10,6 +10,7 @@ import (
 	"sync"
 )
 
+// Fastq (Name, Seq, Qual)
 type Fastq struct {
 	Name string
 	Seq  string
@@ -20,22 +21,26 @@ func (fq Fastq) String() string {
 	return fmt.Sprintf("@%s\n%s\n+\n%s", fq.Name, fq.Seq, fq.Qual)
 }
 
-type FastqFile struct {
+// File (filename)
+type File struct {
 	Name string
 	f    io.ReadCloser
 }
 
-func (fqfile *FastqFile) Load() <-chan *Fastq {
+// Load return *Fastq chan
+func (fqfile *File) Load() <-chan *Fastq {
 	ch := make(chan *Fastq)
 	go run(fqfile.Name, fqfile.f, ch)
 	return ch
 }
 
-func (fqfile *FastqFile) Close() error {
+// Close File
+func (fqfile *File) Close() error {
 	return fqfile.f.Close()
 }
 
-func Open(filename string) (*FastqFile, error) {
+// Open open fastqfile return *File, err
+func Open(filename string) (*File, error) {
 	file, err := lib.Xopen(filename)
 	if err != nil {
 		return nil, err
@@ -45,7 +50,7 @@ func Open(filename string) (*FastqFile, error) {
 		filename = "STDIN"
 	}
 
-	fqfile := &FastqFile{Name: filename, f: file}
+	fqfile := &File{Name: filename, f: file}
 	return fqfile, nil
 }
 
@@ -141,6 +146,7 @@ func run(filename string, file io.Reader, ch chan *Fastq) {
 	close(ch)
 }
 
+// Load return *fastq chan, error
 func Load(filename string) (<-chan *Fastq, error) {
 	fqfile, err := Open(filename)
 	if err != nil {
@@ -149,13 +155,14 @@ func Load(filename string) (<-chan *Fastq, error) {
 	return fqfile.Load(), nil
 }
 
+// Loads load multi-fastq file return *fastq chan, error
 func Loads(filenames ...string) (<-chan *Fastq, error) {
 	l := len(filenames)
 	if l == 0 {
 		return nil, fmt.Errorf("no fastq file given%s", "!!!")
 	}
 
-	fqfiles := []*FastqFile{}
+	fqfiles := []*File{}
 	for i := 0; i < l; i++ {
 		filename := filenames[i]
 		fqfile, err := Open(filename)
@@ -166,11 +173,11 @@ func Loads(filenames ...string) (<-chan *Fastq, error) {
 	}
 
 	ch := make(chan *Fastq)
-	go func(ch chan *Fastq, fqfiles []*FastqFile) {
+	go func(ch chan *Fastq, fqfiles []*File) {
 		wg := &sync.WaitGroup{}
 		for _, fqfile := range fqfiles {
 			wg.Add(1)
-			go func(ch chan *Fastq, fqfile *FastqFile, wg *sync.WaitGroup) {
+			go func(ch chan *Fastq, fqfile *File, wg *sync.WaitGroup) {
 				defer fqfile.Close()
 				for fq := range fqfile.Load() {
 					ch <- fq
