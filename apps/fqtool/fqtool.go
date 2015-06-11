@@ -1,22 +1,16 @@
 package main
 
 import (
-	"fmt"
-	"gongs/biofile/fastq"
+	"gongs/command"
 	"os"
 )
 
+const mainName = "fqtool"
+const mainDesc = "a tool kit for fastq format files"
+const mainVersion = "2015.06.11.1"
+
 func main() {
-	for _, file := range os.Args[1:] {
-		fqfile, err := fastq.Open(file)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		cc := 0
-		for _ = range fqfile.Load() {
-			cc++
-		}
-		fmt.Println(file, "contain Reads:", cc)
-	}
+	cmd := command.New(mainName, mainDesc, mainVersion)
+	cmd.Add(&command.SubCommand{Name: countName, Desc: countDesc, Usage: countArger.Usage, Runner: countRunner})
+	cmd.Run(os.Args[1:]...)
 }
