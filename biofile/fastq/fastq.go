@@ -1,185 +1,134 @@
 package fastq
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
-	"gongs/lib"
+	"gongs/scan"
+	"gongs/xopen"
 	"io"
-	"os"
 	"strings"
-	"sync"
 )
 
 type Fastq struct {
 	Name string
-	Seq  string
-	Qual string
+	Seq  []byte
+	Qual []byte
 }
 
 func (fq Fastq) String() string {
-	return fmt.Sprintf("@%s\n%s\n+\n%s", fq.Name, fq.Seq, fq.Qual)
+	return fmt.Sprintf("@%v\n%v\n+\n%v", fq.Name, string(fq.Seq), string(fq.Qual))
+}
+
+func (fq Fastq) Id() string {
+	if n := strings.IndexByte(fq.Name, ' '); n >= 0 {
+		return fq.Name[:n]
+	}
+
+	// for old solexa data format
+	if n := strings.IndexByte(fq.Name, '#'); n >= 0 {
+		return fq.Name[:n]
+	}
+
+	return fq.Name
 }
 
 type FastqFile struct {
-	Name string
-	f    io.ReadCloser
-}
-
-func (fqfile *FastqFile) Load() <-chan *Fastq {
-	ch := make(chan *Fastq)
-	go run(fqfile.Name, fqfile.f, ch)
-	return ch
-}
-
-func (fqfile *FastqFile) Close() error {
-	return fqfile.f.Close()
+	Name  string
+	file  io.ReadCloser
+	s     *scan.Scanner
+	name  []byte
+	seq   []byte
+	qual  []byte
+	buf   []byte
+	err   error
+	stage int
 }
 
 func Open(filename string) (*FastqFile, error) {
-	file, err := lib.Xopen(filename)
+	file, err := xopen.Xopen(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	if filename == "-" || filename == "" {
-		filename = "STDIN"
-	}
-
-	fqfile := &FastqFile{Name: filename, f: file}
-	return fqfile, nil
+	return &FastqFile{
+		Name: filename,
+		s:    scan.New(file),
+		file: file,
+		buf:  make([]byte, 1024),
+	}, nil
 }
 
-// // Parse(file io.Reader, filename string)
-// func Parse(args ...interface{}) <-chan *Fastq {
-// 	var file io.Reader
-// 	var filename string
-// 	switch l := len(args); {
-// 	case l >= 2:
-// 		filename = args[1].(string)
-// 		fallthrough
-// 	case l == 1:
-// 		file = args[0].(io.Reader)
-// 	default:
-// 		file = os.Stdin
-// 	}
-// 	ch := make(chan *Fastq)
-// 	go run(filename, file, ch)
-// 	return ch
-// }
+func (ff *FastqFile) Close() error {
+	return ff.file.Close()
+}
 
-func run(filename string, file io.Reader, ch chan *Fastq) {
-	defer func() {
-		if err := recover(); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+func (ff *FastqFile) Err() error {
+	if ff.err == nil || ff.err == io.EOF {
+		if err := ff.s.Err(); err != nil {
+			return err
 		}
-	}()
+		return nil
+	}
+	return ff.err
+}
 
-	line, name, seq, qual, slen, qlen := "", "", []string{}, []string{}, 0, 0
-	handle := bufio.NewScanner(file)
-	for handle.Scan() {
-		line = strings.TrimSpace(handle.Text())
-		if len(line) == 0 || line[0] == '#' {
+func (ff *FastqFile) setErr(err error) {
+	if ff.err == nil {
+		ff.err = err
+	}
+}
+
+func (ff *FastqFile) Next() bool {
+	for ff.s.Next() {
+		line := ff.s.Bytes()
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 { // empty line
 			continue
 		}
 
-		if line[0] != '@' {
-			panic(fmt.Errorf("%s is not a fastq format file", filename))
-		}
-		break
-	}
-
-	if len(line) == 0 { // nothing input, empty fastq file
-		close(ch)
-		return
-	}
-
-	name = line[1:]
-	isSeqBlock := true
-
-	for handle.Scan() {
-		line = strings.TrimSpace(handle.Text()) // trim space from both side
-
-		if len(line) == 0 { // ignore empty line
-			continue
-		}
-
-		if isSeqBlock {
+		switch ff.stage {
+		case 0: // get fastq name
+			if line[0] != '@' {
+				ff.setErr(fmt.Errorf("file: %v Wrong Fastq Record Name %s at line: %d", ff.Name, string(line), ff.s.Lid()))
+				return false
+			}
+			ff.stage++
+			ff.name = line[1:]
+			ff.seq = ff.seq[:0]   // clear seq
+			ff.qual = ff.qual[:0] // clear qual
+		case 1: // get seq
 			if line[0] == '+' {
-				isSeqBlock = false
-			} else {
-				seq = append(seq, line)
-				slen += len(line)
+				ff.stage += 2
+				break
 			}
-		} else {
-			if qlen > slen {
-				panic(fmt.Errorf("Error: while Parsing fastq Record(%s) at file(%s)", name, filename))
-			}
-
-			if line[0] == '@' { // at beginning of next fastq
-				if slen == qlen {
-					ch <- &Fastq{Name: name, Seq: strings.Join(seq, ""), Qual: strings.Join(qual, "")}
-					name, seq, qual, slen, qlen = line[1:], []string{}, []string{}, 0, 0
-					isSeqBlock = true
-				} else { // just a qual line begin with @
-					qual = append(qual, line)
-					qlen += len(line)
-				}
-			} else { // quality block
-				qual = append(qual, line)
-				qlen += len(line)
+			ff.seq = append(ff.seq, line...)
+		case 2: // get +
+		case 3: // get qual
+			ff.qual = append(ff.qual, line...)
+			if len(ff.qual) == len(ff.seq) {
+				ff.stage = 0
+				return true
+			} else if len(ff.qual) > len(ff.seq) {
+				ff.setErr(fmt.Errorf("file: %v Fastq Record (%s) qual length (%d) longer than seq length (%d) at line: %d",
+					ff.Name, string(name), len(qual), len(seq), ff.s.Lid()))
+				return false
 			}
 		}
 	}
-
-	if len(name) != 0 || len(seq) != 0 { // check the last record
-		if slen != qlen {
-			panic(fmt.Errorf("Error: while Parsing fastq Record(%s) at file(%s)", name, filename))
-		}
-		ch <- &Fastq{Name: name, Seq: strings.Join(seq, ""), Qual: strings.Join(qual, "")}
-	}
-	close(ch)
+	return false
 }
 
-func Load(filename string) (<-chan *Fastq, error) {
-	fqfile, err := Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	return fqfile.Load(), nil
+func (ff *FastqFile) Value() *Fastq {
+	return &Fastq{Name: string(ff.name), Seq: ff.seq, Qual: ff.qual}
 }
 
-func Loads(filenames ...string) (<-chan *Fastq, error) {
-	l := len(filenames)
-	if l == 0 {
-		return nil, fmt.Errorf("no fastq file given%s", "!!!")
-	}
-
-	fqfiles := []*FastqFile{}
-	for i := 0; i < l; i++ {
-		filename := filenames[i]
-		fqfile, err := Open(filename)
-		if err != nil {
-			return nil, err
-		}
-		fqfiles = append(fqfiles, fqfile)
-	}
-
+func (ff *FastqFile) Iter() <-chan *Fastq {
 	ch := make(chan *Fastq)
-	go func(ch chan *Fastq, fqfiles []*FastqFile) {
-		wg := &sync.WaitGroup{}
-		for _, fqfile := range fqfiles {
-			go func(ch chan *Fastq, fqfile *FastqFile, wg *sync.WaitGroup) {
-				wg.Add(1)
-				defer fqfile.Close()
-				for fq := range fqfile.Load() {
-					ch <- fq
-				}
-				wg.Done()
-			}(ch, fqfile, wg)
+	go func(ch chan *Fastq) {
+		for ff.Next() {
+			ch <- ff.Value()
 		}
-		wg.Wait()
 		close(ch)
-	}(ch, fqfiles)
-	return ch, nil
+	}(ch)
+	return ch
 }
