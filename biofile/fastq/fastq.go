@@ -87,7 +87,7 @@ func (ff *FastqFile) Next() bool {
 		line = ff.s.Bytes()
 		switch ff.stage {
 		case 0: // get fastq name
-			if line[0] != '@' {
+			if len(line) > 0 && line[0] != '@' {
 				ff.setErr(fmt.Errorf("file: %v Wrong Fastq Record Name %s at line: %d", ff.Name, string(line), ff.s.Lid()))
 				return false
 			}
@@ -96,7 +96,7 @@ func (ff *FastqFile) Next() bool {
 			ff.seq = ff.seq[:0]   // clear seq
 			ff.qual = ff.qual[:0] // clear qual
 		case 1: // get fastq seq
-			if line[0] == '+' {
+			if len(line) > 0 && line[0] == '+' {
 				ff.stage += 2
 				break
 			}
@@ -114,6 +114,7 @@ func (ff *FastqFile) Next() bool {
 			}
 		}
 	}
+
 	return false
 }
 
@@ -123,23 +124,9 @@ func (ff *FastqFile) Value() *Fastq {
 
 func (ff *FastqFile) Iter() <-chan *Fastq {
 	ch := make(chan *Fastq)
-<<<<<<< HEAD
-	go func(ch chan *Fastq, fqfiles []*FastqFile) {
-		wg := &sync.WaitGroup{}
-		for _, fqfile := range fqfiles {
-			wg.Add(1)
-			go func(ch chan *Fastq, fqfile *FastqFile, wg *sync.WaitGroup) {
-				defer fqfile.Close()
-				for fq := range fqfile.Load() {
-					ch <- fq
-				}
-				wg.Done()
-			}(ch, fqfile, wg)
-=======
 	go func(ch chan *Fastq) {
 		for ff.Next() {
 			ch <- ff.Value()
->>>>>>> align
 		}
 		close(ch)
 	}(ch)
