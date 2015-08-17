@@ -2,6 +2,7 @@ package fastq
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 )
 
@@ -20,12 +21,6 @@ func (p Pair) String() string {
 }
 
 type FastqPairFile struct {
-<<<<<<< HEAD
-	Name1 string
-	Name2 string
-	file1 *FastqFile
-	file2 *FastqFile
-=======
 	ff1 *FastqFile
 	ff2 *FastqFile
 	err error
@@ -42,7 +37,6 @@ func (pf *FastqPairFile) Err() error {
 		return err
 	}
 	return pf.err
->>>>>>> align
 }
 
 func (pf *FastqPairFile) Close() error {
@@ -90,15 +84,8 @@ func OpenPair(filename1, filename2 string) (*FastqPairFile, error) {
 		return nil, err
 	}
 	return &FastqPairFile{
-<<<<<<< HEAD
-		Name1: filename1,
-		Name2: filename2,
-		file1: file1,
-		file2: file2,
-=======
 		ff1: ff1,
 		ff2: ff2,
->>>>>>> align
 	}, nil
 }
 
