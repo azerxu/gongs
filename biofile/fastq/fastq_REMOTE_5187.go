@@ -123,23 +123,9 @@ func (ff *FastqFile) Value() *Fastq {
 
 func (ff *FastqFile) Iter() <-chan *Fastq {
 	ch := make(chan *Fastq)
-<<<<<<< HEAD
-	go func(ch chan *Fastq, fqfiles []*FastqFile) {
-		wg := &sync.WaitGroup{}
-		for _, fqfile := range fqfiles {
-			wg.Add(1)
-			go func(ch chan *Fastq, fqfile *FastqFile, wg *sync.WaitGroup) {
-				defer fqfile.Close()
-				for fq := range fqfile.Load() {
-					ch <- fq
-				}
-				wg.Done()
-			}(ch, fqfile, wg)
-=======
 	go func(ch chan *Fastq) {
 		for ff.Next() {
 			ch <- ff.Value()
->>>>>>> align
 		}
 		close(ch)
 	}(ch)

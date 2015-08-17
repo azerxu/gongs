@@ -1,8 +1,13 @@
 package fastq
 
 import (
-	"fmt"
+	"errors"
 	"sync"
+)
+
+var (
+	ErrEmptyInputFile  = errors.New("No Input Fastq File Given")
+	ErrUnPairInputFile = errors.New("Input Fastq File Not Paired")
 )
 
 type Pair struct {
@@ -15,100 +20,136 @@ func (p Pair) String() string {
 }
 
 type FastqPairFile struct {
+<<<<<<< HEAD
 	Name1 string
 	Name2 string
 	file1 *FastqFile
 	file2 *FastqFile
+=======
+	ff1 *FastqFile
+	ff2 *FastqFile
+	err error
 }
 
-func (pairfile *FastqPairFile) Close() error {
-	if err := pairfile.file1.Close(); err != nil {
+func (pf *FastqPairFile) Filenames() (string, string) {
+	return pf.ff1.Name, pf.ff2.Name
+}
+
+func (pf *FastqPairFile) Err() error {
+	if err := pf.ff1.Err(); err != nil {
+		return err
+	} else if err := pf.ff2.Err(); err != nil {
 		return err
 	}
-	if err := pairfile.file2.Close(); err != nil {
+	return pf.err
+>>>>>>> align
+}
+
+func (pf *FastqPairFile) Close() error {
+	if err := pf.ff1.Close(); err != nil {
+		return err
+	}
+	if err := pf.ff2.Close(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (pairfile *FastqPairFile) Load() <-chan *Pair {
-	chan1 := pairfile.file1.Load()
-	chan2 := pairfile.file2.Load()
+func (pf *FastqPairFile) Next() bool {
+	if pf.ff1.Next() && pf.ff2.Next() {
+		return true
+	}
+	return false
+}
 
+func (pf *FastqPairFile) Value() *Pair {
+	return &Pair{
+		Read1: pf.ff1.Value(),
+		Read2: pf.ff2.Value(),
+	}
+}
+
+func (pf *FastqPairFile) Iter() <-chan *Pair {
 	out := make(chan *Pair)
-	go func(chan1, chan2 <-chan *Fastq, out chan *Pair) {
-		for {
-			read1, ok1 := <-chan1
-			read2, ok2 := <-chan2
-			if ok1 && ok2 {
-				out <- &Pair{Read1: read1, Read2: read2}
-			} else {
-				break
-			}
+	go func(pf *FastqPairFile, out chan *Pair) {
+		for pf.Next() {
+			out <- pf.Value()
 		}
 		close(out)
-	}(chan1, chan2, out)
+	}(pf, out)
 	return out
 }
 
 func OpenPair(filename1, filename2 string) (*FastqPairFile, error) {
-	file1, err := Open(filename1)
+	ff1, err := Open(filename1)
 	if err != nil {
 		return nil, err
 	}
-	file2, err := Open(filename2)
+	ff2, err := Open(filename2)
 	if err != nil {
 		return nil, err
 	}
 	return &FastqPairFile{
+<<<<<<< HEAD
 		Name1: filename1,
 		Name2: filename2,
 		file1: file1,
 		file2: file2,
+=======
+		ff1: ff1,
+		ff2: ff2,
+>>>>>>> align
 	}, nil
 }
 
 func LoadPair(filename1, filename2 string) (<-chan *Pair, error) {
-	pairfile, err := OpenPair(filename1, filename2)
+	pf, err := OpenPair(filename1, filename2)
 	if err != nil {
 		return nil, err
 	}
-	return pairfile.Load(), nil
+	return pf.Iter(), nil
 }
 
-func LoadPairs(filenames ...string) (<-chan *Pair, error) {
+func OpenPairs(filenames ...string) ([]*FastqPairFile, error) {
 	if l := len(filenames); l == 0 {
-		return nil, fmt.Errorf("no fastq file given%s", "!!!")
+		return nil, ErrEmptyInputFile
 	} else if l%2 != 0 {
-		return nil, fmt.Errorf("input fastq file not paired, given %d files.", l)
+		return nil, ErrUnPairInputFile
 	}
-
-	pairfiles := []*FastqPairFile{}
+	pfs := make([]*FastqPairFile, len(filenames)/2)
 	for i := 0; i < len(filenames); i += 2 {
 		filename1 := filenames[i]
 		filename2 := filenames[i+1]
-		pairfile, err := OpenPair(filename1, filename2)
+		pf, err := OpenPair(filename1, filename2)
 		if err != nil {
 			return nil, err
 		}
-		pairfiles = append(pairfiles, pairfile)
+		pfs[i/2] = pf
+	}
+	return pfs, nil
+}
+
+func Iter(filenames ...string) (<-chan *Pair, error) {
+	pfs, err := OpenPairs(filenames...)
+	if err != nil {
+		return nil, err
 	}
 
-	ch := make(chan *Pair)
-	go func(ch chan *Pair, pairfiles []*FastqPairFile) {
+	ch := make(chan *Pair, 4*len(pfs))
+	go func(ch chan *Pair, pfs []*FastqPairFile) {
 		wg := &sync.WaitGroup{}
-		wg.Add(len(pairfiles))
-		for _, pairfile := range pairfiles {
-			go func(ch chan *Pair, pairfile *FastqPairFile, wg *sync.WaitGroup) {
-				defer pairfile.Close()
-				for pair := range pairfile.Load() {
-					ch <- pair
+		wg.Add(len(pfs))
+		for _, pf := range pfs {
+			go func(ch chan *Pair, pf *FastqPairFile, wg *sync.WaitGroup) {
+				defer pf.Close()
+				for pf.Next() {
+					ch <- pf.Value()
 				}
 				wg.Done()
-			}(ch, pairfile, wg)
+			}(ch, pf, wg)
 		}
 		wg.Wait()
 		close(ch)
-	}(ch, pairfiles)
+	}(ch, pfs)
 	return ch, nil
 }
