@@ -1,113 +1,130 @@
+// Read and Parse fasta format file
+
 package fasta
 
 import (
-	"biofile/opener"
-	"bufio"
-	"bytes"
+	"fmt"
+	"gongs/scan"
+	"gongs/xopen"
 	"io"
+	"strings"
 )
 
-// Record contains the data from a fasta fastq record
-type record struct {
-	Name, Seq, Qual string
+const (
+	LineWidth    = 60
+	MaxLineWidth = 200
+)
+
+type Fasta struct {
+	Name string
+	Seq  string
 }
 
-// FqReader holds all the necessary fields that will be use during the processing
-// of a fasta fastq file
-type FqReader struct {
-	Reader          *bufio.Reader
-	last, seq, qual []byte // last line processed, temporary seq and qual values
-	finished        bool
-	rec             record
-}
-
-// iterLines iterates over the lines of a reader
-func (fq *FqReader) iterLines() ([]byte, bool) {
-	line, err := fq.Reader.ReadSlice('\n')
-	if err != nil {
-		if err == io.EOF {
-			return line, true
-		} else {
-			panic(err)
-		}
-	}
-	return line, false
-}
-
-var space = []byte(" ")
-
-// Iter iterates over the records in a fasta fastq file
-// Example (number of reacords and sequence/qual lenghts):
-//
-// fp, r := files.Xopen("-")
-// defer fp.Close()
-// n, sLen, qLen := 0, int64(0), int64(0)
-// var fqr fasta.FqReader
-// fqr.Reader = r // Any reader you want ..
-// for r, done := fqr.iter(); !done; r, done = fqr.iter() {
-// 	n += 1
-//  sLen += int64(len(r.seq))
-//  qLen += int64(len(r.qual))
-// }
-//
-func (fq *FqReader) Iter() (record, bool) {
-	if fq.finished {
-		return fq.rec, fq.finished
-	}
-	// Read the seq id (fasta or fastq)
-	if fq.last == nil {
-		for l, done := fq.iterLines(); !done; l, done = fq.iterLines() {
-			if l[0] == '>' || l[0] == '@' { // read id
-				fq.last = l[0 : len(l)-1]
-				break
+func (fa Fasta) String() string {
+	if len(fa.Seq) > MaxLineWidth {
+		buf := []string{}
+		for start, end := 0, len(fa.Seq); start < end; start += LineWidth {
+			if start+LineWidth < l {
+				buf = append(buf, fa.Seq[start:start+LineWidth])
+			} else {
+				buf = append(buf, fa.Seq[start:end])
 			}
 		}
-		if fq.last == nil { // We couldn't find a valid record, no more data in file
-			fq.finished = true
-			return fq.rec, fq.finished
-		}
+		return fmt.Sprintf(">%s\n%s", fa.Name, strings.Join(buf, "\n"))
 	}
-	fq.rec.Name = string(bytes.SplitN(fq.last, space, 1)[0])
-	fq.last = nil
-
-	// Now read the sequence
-	fq.seq = fq.seq[:0]
-	for l, done := fq.iterLines(); !done; l, done = fq.iterLines() {
-		c := l[0]
-		if c == '+' || c == '>' || c == '@' {
-			fq.last = l[0 : len(l)-1]
-			break
-		}
-		fq.seq = append(fq.seq, l[0:len(l)-1]...)
-	}
-	fq.rec.Seq = string(fq.seq)
-
-	if fq.last != nil { // There are more lines
-		if fq.last[0] != '+' { // fasta record
-			return fq.rec, fq.finished
-		}
-		leng := 0
-		fq.qual = fq.qual[:0]
-		for l, done := fq.iterLines(); !done; l, done = fq.iterLines() {
-			fq.qual = append(fq.qual, l[0:len(l)-1]...)
-			leng += len(l)
-			if leng >= len(fq.seq) { // we have read enough quality
-				fq.last = nil
-				fq.rec.Qual = string(fq.qual)
-				return fq.rec, fq.finished
-			}
-		}
-		fq.finished = true
-		fq.rec.Qual = string(fq.qual)
-	}
-	return fq.rec, fq.finished // incomplete fastq quality, return what we have
+	return fmt.Sprintf(">%s\n%s", fa.Name, fa.Seq)
 }
 
-func Open(filename string) (*FqReader, error) {
-	file, err := opener.Open(filename)
+func (fa Fasta) Id() string {
+	if n := strings.IndexByte(fa.Name, ' '); n >= 0 {
+		return fa.Name[:n]
+	}
+	return fa.Name
+}
+
+func (fa *Fasta) Slice(start, end int) *Fasta {
+	return &Fasta{Name: fa.Name, Seq: fa.Seq[start:end]}
+}
+
+type FastaFile struct {
+	Name string
+	file io.ReadCloser
+	s    *scan.Scanner
+	err  error
+	name []byte
+	seq  []byte
+	last []byte
+}
+
+func Open(filename string) (*FastaFile, error) {
+	file, err := xopen.Xopen(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	return &FqReader{Reader: bufio.NewReader(file)}, nil
+	return &FastaFile{
+		Name: filename,
+		file: file,
+		s:    scan.New(file),
+		seq:  make([]byte, 1024),
+	}, nil
+}
+
+func (ff *FastaFile) Err() error {
+	if ff.err == nil || ff.err == io.EOF {
+		return ff.s.Err()
+	}
+	return ff.err
+}
+
+func (ff *FastaFile) Close() error {
+	return ff.file.Close()
+}
+
+func (ff *FastaFile) Next() bool {
+	if ff.err != nil {
+		return false
+	}
+	var line []byte
+	if len(ff.last) == 0 {
+		for ff.s.Scan() { // get fasta record name
+			if line = ff.s.Bytes(); (len(line) > 0) && (line[0] == '>') {
+				ff.last = line
+				break
+			}
+		}
+	}
+	if len(ff.last) == 0 { // end of file
+		ff.setErr(io.EOF)
+		return false
+	}
+
+	ff.name = ff.last[1:]
+	ff.last = ff.last[:0]
+	ff.seq = ff.seq[:0]
+	for ff.s.Scan() { // get fasta record sequence
+		line = ff.s.Bytes()
+		if len(line) > 0 && line[0] == '>' {
+			ff.last = line
+			return true
+		}
+		ff.seq = append(ff.seq, line...)
+	}
+	ff.setErr(io.EOF)
+	return true
+}
+
+func (ff *FastaFile) Value() *Fasta {
+	return &Fasta{Name: string(ff.name), Seq: string(ff.seq)}
+}
+
+func (ff *FastaFile) Iter() <-chan *Fasta {
+	ch := make(chan *Fasta)
+	go func(ch chan *Fasta, ff *FastaFile) {
+		for ff.Next() {
+			ch <- ff.Value()
+		}
+		close(ch)
+	}(ch, ff)
+	return ch
 }
