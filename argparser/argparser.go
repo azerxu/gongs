@@ -5,7 +5,7 @@
 //   @@ stderr
 //   !! needed
 
-package arger
+package argparser
 
 import (
 	"fmt"
