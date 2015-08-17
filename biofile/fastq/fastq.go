@@ -1,6 +1,7 @@
 package fastq
 
 import (
+	"bytes"
 	"fmt"
 	"gongs/scan"
 	"gongs/xopen"
@@ -84,7 +85,10 @@ func (ff *FastqFile) Next() bool {
 
 	var line []byte
 	for ff.s.Scan() {
-		line = ff.s.Bytes()
+		line = bytes.TrimSpace(ff.s.Bytes())
+		if len(line) == 0 { // ingore empty line
+			continue
+		}
 		switch ff.stage {
 		case 0: // get fastq name
 			if len(line) > 0 && line[0] != '@' {
@@ -114,7 +118,11 @@ func (ff *FastqFile) Next() bool {
 			}
 		}
 	}
-
+	if len(ff.qual) < len(ff.seq) {
+		ff.setErr(fmt.Errorf("file: %v Fastq Record (%s) qual length (%d) != seq length (%d) at line: %d",
+			ff.Name, string(ff.name), len(ff.qual), len(ff.seq), ff.s.Lid()))
+	}
+	ff.setErr(io.EOF)
 	return false
 }
 
