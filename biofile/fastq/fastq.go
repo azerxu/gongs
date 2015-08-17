@@ -39,7 +39,6 @@ type FastqFile struct {
 	name  []byte
 	seq   []byte
 	qual  []byte
-	buf   []byte
 	err   error
 	stage int
 }
@@ -54,7 +53,6 @@ func Open(filename string) (*FastqFile, error) {
 		Name: filename,
 		s:    scan.New(file),
 		file: file,
-		buf:  make([]byte, 1024),
 	}, nil
 }
 
