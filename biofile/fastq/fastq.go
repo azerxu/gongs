@@ -79,7 +79,7 @@ func (ff *FastqFile) setErr(err error) {
 }
 
 func (ff *FastqFile) Next() bool {
-	for ff.s.Next() {
+	for ff.s.Scan() {
 		line := ff.s.Bytes()
 		line = bytes.TrimSpace(line)
 		if len(line) == 0 { // empty line
@@ -110,7 +110,7 @@ func (ff *FastqFile) Next() bool {
 				return true
 			} else if len(ff.qual) > len(ff.seq) {
 				ff.setErr(fmt.Errorf("file: %v Fastq Record (%s) qual length (%d) longer than seq length (%d) at line: %d",
-					ff.Name, string(name), len(qual), len(seq), ff.s.Lid()))
+					ff.Name, string(ff.name), len(ff.qual), len(ff.seq), ff.s.Lid()))
 				return false
 			}
 		}
