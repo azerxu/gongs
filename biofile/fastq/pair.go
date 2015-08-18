@@ -89,14 +89,6 @@ func OpenPair(filename1, filename2 string) (*FastqPairFile, error) {
 	}, nil
 }
 
-func LoadPair(filename1, filename2 string) (<-chan *Pair, error) {
-	pf, err := OpenPair(filename1, filename2)
-	if err != nil {
-		return nil, err
-	}
-	return pf.Iter(), nil
-}
-
 func OpenPairs(filenames ...string) ([]*FastqPairFile, error) {
 	if l := len(filenames); l == 0 {
 		return nil, ErrEmptyInputFile
@@ -139,4 +131,60 @@ func Iter(filenames ...string) (<-chan *Pair, error) {
 		close(ch)
 	}(ch, pfs)
 	return ch, nil
+}
+
+func LoadPair(filenames ...string) (<-chan *Pair, <-chan error) {
+	pChan := make(chan *Pair, len(filenames))
+	errChan := make(chan error, 1)
+
+	pfs, err := OpenPairs(filenames...)
+	if err != nil {
+		errChan <- err
+		return nil, errChan
+	}
+
+	go func(pfs []*FastqPairFile, pChan chan *Pair, errChan chan error) {
+		for _, pf := range pfs {
+			defer pf.Close()
+			for pf.Next() {
+				pChan <- pf.Value()
+			}
+			if err := pf.Err(); err != nil {
+				errChan <- err
+			}
+		}
+		close(pChan)
+	}(pfs, pChan, errChan)
+	return pChan, errChan
+}
+
+func LoadPairMix(filenames ...string) (<-chan *Pair, <-chan error) {
+	pChan := make(chan *Pair, len(filenames))
+	errChan := make(chan error, 1)
+
+	pfs, err := OpenPairs(filenames...)
+	if err != nil {
+		errChan <- err
+		return nil, errChan
+	}
+
+	wg := &sync.WaitGroup{}
+	go func(pfs []*FastqPairFile, pChan chan *Pair, errChan chan error) {
+		for _, pf := range pfs {
+			wg.Add(1)
+			go func(pf *FastqPairFile, wg *sync.WaitGroup, pChan chan *Pair, errChan chan error) {
+				defer pf.Close()
+				for pf.Next() {
+					pChan <- pf.Value()
+				}
+				if err := pf.Err(); err != nil {
+					errChan <- err
+				}
+				wg.Done()
+			}(pf, wg, pChan, errChan)
+		}
+		wg.Wait()
+		close(pChan)
+	}(pfs, pChan, errChan)
+	return pChan, errChan
 }
