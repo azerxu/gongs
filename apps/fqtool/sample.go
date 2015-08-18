@@ -1,25 +1,28 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
-	"gongs/arger"
+	"gongs/argparser"
 	"gongs/biofile/fastq"
-	"gongs/lib"
+	"gongs/xopen"
 	"math/rand"
 	"os"
+	"runtime"
 	"time"
 )
 
 const sampleName = "sample"
 const sampleDesc = "sample a sub set from fastq file"
 
-var sampleArger = arger.New(mainName, sampleName)
+var sampleArger = argparser.New(mainName, sampleName)
 
 func init() {
 	sampleArger.Add("rate", "-r", "--rate", "sample rate", 0.1)
 	sampleArger.Add("single", "-s", "--single", "input file is single file", false)
 	sampleArger.Add("prefix", "-p", "--prefix", "output file prefix name", "sample")
 	sampleArger.Add("seed", "-S", "--seed", "random seed", 0)
+	sampleArger.Add("thread", "-t", "--threads", "threads number default use all", 0)
 }
 
 func sampleRunner(args ...string) {
@@ -37,6 +40,12 @@ func sampleRunner(args ...string) {
 	single := sampleArger.Get("single").(bool)
 	prefix := sampleArger.Get("prefix").(string)
 	seed := int64(sampleArger.Get("seed").(int))
+	thread := sampleArger.Get("thread").(int)
+
+	if cpus := runtime.NumCPU(); thread < 1 || thread > cpus {
+		thread = runtime.NumCPU()
+	}
+	runtime.GOMAXPROCS(thread)
 
 	if seed != 0 {
 		rand.Seed(seed)
@@ -58,44 +67,60 @@ func sampleRun(single bool, rate float64, prefix string, filenames ...string) er
 }
 
 func sampleSingleRun(rate float64, prefix string, filenames ...string) error {
-	fqchan, err := fastq.Loads(filenames...)
+	out, err := xopen.Xcreate(prefix+".fastq", "w")
 	if err != nil {
 		return err
 	}
+	defer out.Close()
+	outter := bufio.NewWriter(out)
+	defer outter.Flush()
 
-	outter, err := lib.Xcreate(prefix+".fastq", "w")
-	if err != nil {
-		return err
-	}
-	defer outter.Close()
-
-	for fq := range fqchan {
-		if rate > rand.Float64() {
-			fmt.Fprintln(outter, fq)
+	fqChan, errChan := fastq.Load(filenames...)
+	for {
+		select {
+		case fq, ok := <-fqChan:
+			if !ok {
+				return nil
+			}
+			if rate > rand.Float64() {
+				fmt.Fprintln(outter, fq)
+			}
+		case err := <-errChan:
+			return err
 		}
 	}
 	return nil
 }
 
 func samplePairRun(rate float64, prefix string, filenames ...string) error {
-	pairchan, err := fastq.LoadPairs(filenames...)
+	out1, err := xopen.Xcreate(prefix+".r1.fastq", "w")
 	if err != nil {
 		return err
 	}
-	outter1, err := lib.Xcreate(prefix+".r1.fastq", "w")
+	defer out1.Close()
+	out2, err := xopen.Xcreate(prefix+".r2.fastq", "w")
 	if err != nil {
 		return err
 	}
-	defer outter1.Close()
-	outter2, err := lib.Xcreate(prefix+".r2.fastq", "w")
-	if err != nil {
-		return err
-	}
-	defer outter2.Close()
-	for p := range pairchan {
-		if rate > rand.Float64() {
-			fmt.Fprintln(outter1, p.Read1)
-			fmt.Fprintln(outter2, p.Read2)
+	defer out2.Close()
+	outter1 := bufio.NewWriter(out1)
+	outter2 := bufio.NewWriter(out2)
+	defer outter1.Flush()
+	defer outter2.Flush()
+
+	pchan, errchan := fastq.LoadPair(filenames...)
+	for {
+		select {
+		case p, ok := <-pchan:
+			if !ok { // pchan closed, all ok
+				return nil
+			}
+			if rate > rand.Float64() {
+				fmt.Fprintln(outter1, p.Read1)
+				fmt.Fprintln(outter2, p.Read1)
+			}
+		case err := <-errchan: // something wrong at input fastq files
+			return err
 		}
 	}
 	return nil
