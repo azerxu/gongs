@@ -1,7 +1,6 @@
 package fastq
 
 import (
-	"biofile/fastq"
 	"bytes"
 	"fmt"
 	"gongs/scan"
@@ -141,11 +140,11 @@ func (ff *FastqFile) Iter() <-chan *Fastq {
 }
 
 func Opens(filenames ...string) ([]*FastqFile, error) {
-	fqfiles := make([]*fastq.FastqFile, len(filenames))
+	fqfiles := make([]*FastqFile, len(filenames))
 	for i, filename := range filenames {
-		fqfile, err := fastq.Open(filename)
+		fqfile, err := Open(filename)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		fqfiles[i] = fqfile
 	}
