@@ -23,14 +23,13 @@ func countRunner(filenames ...string) {
 	// setting multi-threads
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	fqfiles := make([]*fastq.FastqFile, len(filenames))
-	for i, filename := range filenames {
-		fqfile, err := fastq.Open(filename)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		fqfiles[i] = fqfile
+	fqfiles, err := fastq.Opens(filenames...)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	for _, fqfile := range fqfiles {
+		defer fqfile.Close()
 	}
 
 	chCount := make(chan int, len(filenames))
@@ -57,4 +56,14 @@ func countRunner(filenames ...string) {
 		tot += c
 	}
 	fmt.Println("Total Reads:", tot)
+	ok := true
+	for _, fqfile := range fqfiles {
+		if err := fqfile.Err(); err != nil {
+			fmt.Fprintln(os.Stderr, fqfile.Name, "occur error:", err)
+			ok = false
+		}
+	}
+	if !ok {
+		os.Exit(1)
+	}
 }
