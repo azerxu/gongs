@@ -188,8 +188,8 @@ func LoadMix(filenames ...string) (<-chan *Fastq, <-chan error) {
 		return nil, errChan
 	}
 
-	wg := &sync.WaitGroup{}
-	go func(wg *sync.WaitGroup, fqChan chan *Fastq, errChan chan error, fqfiles []*FastqFile) {
+	go func(fqfiles []*FastqFile, fqChan chan *Fastq, errChan chan error) {
+		wg := &sync.WaitGroup{}
 		for _, fqfile := range fqfiles {
 			wg.Add(1)
 			go func(wg *sync.WaitGroup, fqChan chan *Fastq, errChan chan error, fqfile *FastqFile) {
@@ -206,6 +206,6 @@ func LoadMix(filenames ...string) (<-chan *Fastq, <-chan error) {
 		}
 		wg.Wait()
 		close(fqChan)
-	}(wg, fqChan, errChan, fqfiles)
+	}(fqfiles, fqChan, errChan)
 	return fqChan, errChan
 }
