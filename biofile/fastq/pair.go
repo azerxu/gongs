@@ -168,8 +168,8 @@ func LoadPairMix(filenames ...string) (<-chan *Pair, <-chan error) {
 		return nil, errChan
 	}
 
-	wg := &sync.WaitGroup{}
 	go func(pfs []*FastqPairFile, pChan chan *Pair, errChan chan error) {
+		wg := &sync.WaitGroup{}
 		for _, pf := range pfs {
 			wg.Add(1)
 			go func(pf *FastqPairFile, wg *sync.WaitGroup, pChan chan *Pair, errChan chan error) {
