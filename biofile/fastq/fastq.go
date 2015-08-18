@@ -6,7 +6,9 @@ import (
 	"gongs/scan"
 	"gongs/xopen"
 	"io"
+	"os"
 	"strings"
+	"sync"
 )
 
 type Fastq struct {
@@ -149,4 +151,61 @@ func Opens(filenames ...string) ([]*FastqFile, error) {
 		fqfiles[i] = fqfile
 	}
 	return fqfiles, nil
+}
+
+func Load(filenames ...string) (<-chan *Fastq, <-chan error) {
+	fqChan := make(chan *Fastq, 2*len(fqfiles))
+	errChan := make(chan error, 1)
+
+	fqfiles, err := Opens(filenames...)
+	if err != nil {
+		errChan <- err
+		return nil, errChan
+	}
+
+	go func(fqChan chan *Fastq, errChan chan error, fqfiles []*FastqFile) {
+		for _, fqfile := range fqfiles {
+			defer fqfile.Close()
+			for fqfile.Next() {
+				fqChan <- fqfile.Value()
+			}
+			if err := fqfile.Err(); err != nil {
+				errChan <- err
+			}
+		}
+		close(fqChan)
+	}(wg, fqChan, errChan, fqfiles)
+	return fqChan, errChan
+}
+
+func LoadMix(filenames ...string) (<-chan *Fastq, <-chan error) {
+	fqChan := make(chan *Fastq, 2*len(fqfiles))
+	errChan := make(chan error, 1)
+
+	fqfiles, err := Opens(filenames...)
+	if err != nil {
+		errChan <- err
+		return nil, errChan
+	}
+
+	wg := &sync.WaitGroup{}
+	go func(wg *sync.WaitGroup, fqChan chan *Fastq, errChan chan error, fqfiles []*FastqFile) {
+		for _, fqfile := range fqfiles {
+			wg.Add(1)
+			go func(wg *sync.WaitGroup, fqChan chan *Fastq, errChan chan error, fqfile *FastqFile) {
+				defer fqfile.Close()
+				for fqfile.Next() {
+					fmt.Fprintln(os.Stderr, fqfile.Value())
+					fqChan <- fqfile.Value()
+				}
+				if err := fqfile.Err(); err != nil {
+					errChan <- err
+				}
+				wg.Done()
+			}(wg, fqChan, errChan, fqfile)
+		}
+		wg.Wait()
+		close(fqChan)
+	}(wg, fqChan, errChan, fqfiles)
+	return fqChan, errChan
 }
