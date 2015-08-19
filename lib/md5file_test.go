@@ -17,7 +17,7 @@ func Test_Md5File(t *testing.T) {
 		t.Log(err)
 		t.Fail()
 	}
-	// defer os.Remove(f.Name())
+	defer os.Remove(f.Name())
 	name := f.Name()
 	f.Write([]byte(testString))
 	f.Close()
@@ -32,5 +32,4 @@ func Test_Md5File(t *testing.T) {
 		t.Log("expect:", testMd5)
 		t.Fail()
 	}
-
 }
