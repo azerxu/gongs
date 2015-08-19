@@ -1,7 +1,9 @@
 package gc
 
-import "path"
-import "gongs/lib"
+import (
+	"gongs/lib"
+	"path"
+)
 
 type FileInfo struct {
 	Md5  string
@@ -11,8 +13,8 @@ type FileInfo struct {
 
 func Stat(filename string) *FileInfo {
 	name := path.Base(filename)
-	sizech := make(chan string, 1)
-	md5ch := make(chan string, 1)
+	sizech := make(chan string)
+	md5ch := make(chan string)
 	go func(ch chan string, filename string) {
 		ch <- lib.FileSize(filename)
 	}(sizech, filename)
