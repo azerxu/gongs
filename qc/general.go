@@ -2,7 +2,7 @@ package gc
 
 import (
 	"gongs/lib"
-	"path"
+	"path/filepath"
 )
 
 type FileInfo struct {
@@ -12,7 +12,7 @@ type FileInfo struct {
 }
 
 func Stat(filename string) *FileInfo {
-	name := path.Base(filename)
+	name := filepath.Base(filename)
 	sizech := make(chan string)
 	md5ch := make(chan string)
 	go func(ch chan string, filename string) {
