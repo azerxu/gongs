@@ -1,21 +1,14 @@
-<<<<<<< HEAD
 // Package command for command
-=======
->>>>>>> align
 package command
 
-import "os"
-import "fmt"
-import "strings"
+import (
+	"fmt"
+	"os"
+	"strings"
+)
 
-<<<<<<< HEAD
 const sepSpace = 10
 
-// SubCommand subcommand
-=======
-const _SEPERATE_SPACE = 10
-
->>>>>>> align
 type SubCommand struct {
 	Name   string          // command name
 	Desc   string          // command description
@@ -23,10 +16,7 @@ type SubCommand struct {
 	Runner func(...string) // running command
 }
 
-<<<<<<< HEAD
 // Command command
-=======
->>>>>>> align
 type Command struct {
 	Name        string
 	Desc        string
@@ -34,10 +24,7 @@ type Command struct {
 	subCommands map[string]*SubCommand
 }
 
-<<<<<<< HEAD
 // Add add a subcmd to command
-=======
->>>>>>> align
 func (cmd *Command) Add(subCmd *SubCommand) error {
 	_, ok := cmd.subCommands[subCmd.Name]
 	if ok {
@@ -47,10 +34,7 @@ func (cmd *Command) Add(subCmd *SubCommand) error {
 	return nil
 }
 
-<<<<<<< HEAD
 // AddNew add a new subcommand
-=======
->>>>>>> align
 func (cmd *Command) AddNew(name string, desc string, usage func(), runner func(...string)) error {
 	_, ok := cmd.subCommands[name]
 	if ok {
@@ -60,16 +44,11 @@ func (cmd *Command) AddNew(name string, desc string, usage func(), runner func(.
 	return nil
 }
 
-<<<<<<< HEAD
 // Usage  show command usage
 func (cmd *Command) Usage() {
 	l := sepSpace
 	for cmdName := range cmd.subCommands {
-=======
-func (cmd *Command) Usage() {
-	l := _SEPERATE_SPACE
-	for cmdName, _ := range cmd.subCommands {
->>>>>>> align
+
 		if len(cmdName) >= l {
 			l = len(cmdName) + 1
 		}
@@ -83,10 +62,7 @@ func (cmd *Command) Usage() {
 	}
 }
 
-<<<<<<< HEAD
 // HelpUsage show help usage
-=======
->>>>>>> align
 func (cmd *Command) HelpUsage() {
 	fmt.Fprintf(os.Stderr, "Usage: %s help <command>\n", cmd.Name)
 	fmt.Fprint(os.Stderr, "   Available Commands: help")
@@ -96,10 +72,7 @@ func (cmd *Command) HelpUsage() {
 	fmt.Fprintln(os.Stderr, "")
 }
 
-<<<<<<< HEAD
 // Help show help
-=======
->>>>>>> align
 func (cmd *Command) Help(args ...string) {
 	if len(args) == 0 {
 		cmd.HelpUsage()
@@ -114,21 +87,15 @@ func (cmd *Command) Help(args ...string) {
 
 	subCmd, ok := cmd.subCommands[subCmdName]
 	if !ok {
-<<<<<<< HEAD
-		fmt.Fprintf(os.Stderr, "Unkown SubCommand: %s\n\n", subCmdName)
-=======
 		fmt.Fprintln(os.Stderr, "Unkown SubCommand:", subCmdName, "\n")
->>>>>>> align
 		cmd.HelpUsage()
 		return
 	}
 	subCmd.Usage()
 }
 
-<<<<<<< HEAD
 // Run run command
-=======
->>>>>>> align
+
 func (cmd *Command) Run(args ...string) {
 	if len(args) == 0 {
 		cmd.Usage()
@@ -141,7 +108,7 @@ func (cmd *Command) Run(args ...string) {
 	if subCmdName == "help" {
 		cmd.Help(args...)
 		return
-<<<<<<< HEAD
+
 	}
 	subCmd, ok := cmd.subCommands[subCmdName]
 	if !ok {
@@ -152,21 +119,8 @@ func (cmd *Command) Run(args ...string) {
 	subCmd.Runner(args...)
 }
 
-// New New(name, [desc, version])
-=======
-	} else {
-		subCmd, ok := cmd.subCommands[subCmdName]
-		if !ok {
-			fmt.Fprintln(os.Stderr, "Unkown SubCommand:", subCmdName, "\n")
-			cmd.Usage()
-			return
-		}
-		subCmd.Runner(args...)
-	}
-}
-
 // New(name, [desc, version])
->>>>>>> align
+
 func New(args ...string) *Command {
 	name := "command"
 	desc := "a command tool kit"
