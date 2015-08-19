@@ -154,7 +154,7 @@ func Opens(filenames ...string) ([]*FastqFile, error) {
 }
 
 func Load(filenames ...string) (<-chan *Fastq, <-chan error) {
-	fqChan := make(chan *Fastq, 2*len(fqfiles))
+	fqChan := make(chan *Fastq, 2*len(filenames))
 	errChan := make(chan error, 1)
 
 	fqfiles, err := Opens(filenames...)
@@ -174,12 +174,12 @@ func Load(filenames ...string) (<-chan *Fastq, <-chan error) {
 			}
 		}
 		close(fqChan)
-	}(wg, fqChan, errChan, fqfiles)
+	}(fqChan, errChan, fqfiles)
 	return fqChan, errChan
 }
 
 func LoadMix(filenames ...string) (<-chan *Fastq, <-chan error) {
-	fqChan := make(chan *Fastq, 2*len(fqfiles))
+	fqChan := make(chan *Fastq, 2*len(filenames))
 	errChan := make(chan error, 1)
 
 	fqfiles, err := Opens(filenames...)
