@@ -20,6 +20,10 @@ func (fq Fastq) String() string {
 	return fmt.Sprintf("@%s\n%s\n+\n%s", fq.Name, fq.Seq, fq.Qual)
 }
 
+func (fq Fastq) IsFilter() bool {
+	return strings.Contains(fq.Name, ":Y:")
+}
+
 type FastqFile struct {
 	Name string
 	f    io.ReadCloser
