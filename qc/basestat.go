@@ -2,11 +2,25 @@ package qc
 
 type Base struct {
 	stat map[byte]int // A,C,G,T,N
+	pos  map[int]map[byte]int
+}
+
+func NewBase() *Base {
+	return &Base{
+		stat: make(map[byte]int),
+		pos:  make(map[int]map[byte]int),
+	}
 }
 
 func (b *Base) Count(seq string) {
-	for _, nt := range seq {
+	for i, nt := range seq {
 		b.stat[nt]++
+		mm, ok := b.pos[i]
+		if !ok {
+			mm = make(map[byte]int)
+			b.pos[i] = mm
+		}
+		mm[nt]++
 	}
 }
 
