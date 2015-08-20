@@ -25,13 +25,16 @@ func (fq Fastq) Id() string {
 	if n := strings.IndexByte(fq.Name, ' '); n >= 0 {
 		return fq.Name[:n]
 	}
-
 	// for old solexa data format
 	if n := strings.IndexByte(fq.Name, '#'); n >= 0 {
 		return fq.Name[:n]
 	}
 
 	return fq.Name
+}
+
+func (fq Fastq) IsFilter() bool {
+	return strings.Contains(fq.Name, ":Y:")
 }
 
 type FastqFile struct {

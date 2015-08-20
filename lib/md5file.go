@@ -35,7 +35,6 @@ func Md5File(filename string) (string, error) {
 			return "", err
 		}
 		if rn != wn {
-			// return "", fmt.Errorf("rn: %d, wn: %d", rn, wn)
 			return "", ErrMd5Sum
 		}
 	}
