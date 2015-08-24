@@ -1,4 +1,4 @@
-package gc
+package qc
 
 import (
 	"gongs/lib"
