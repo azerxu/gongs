@@ -3,6 +3,8 @@ package qc
 import (
 	"biofile/fastq"
 	"fmt"
+	"gongs/stat"
+	"gongs/xopen"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,26 +28,20 @@ type tile struct {
 
 type cycle struct {
 	pos int
-	qs  map[byte]int
+	m   *stat.IntMap
 }
 
 func (c *cycle) meanQ() float64 {
-	l := 0
-	tot := 0
-	for k, v := range c.qs {
-		l += v
-		tot += int(k) * v
-	}
-	return float64(tot) / float64(l)
+	return c.m.Mean()
 }
 
 func (c *cycle) medianQ() float64 {
-	return 0
+	return c.m.Median()
 }
 
 func (c *cycle) maxQ() int {
-	var maxq byte = 0
-	for q := range c.qs {
+	maxq := 0
+	for q := range c.m.Data {
 		if maxq < q {
 			maxq = q
 		}
@@ -54,8 +50,8 @@ func (c *cycle) maxQ() int {
 }
 
 func (c *cycle) minQ() int {
-	var minq byte = 127
-	for q := range c.qs {
+	minq := 127
+	for q := range c.m.Data {
 		if minq > q {
 			minq = q
 		}
@@ -63,21 +59,17 @@ func (c *cycle) minQ() int {
 	return minq
 }
 
-func (c *cycle) quantile10() float64 {
-	return c.quantile(10)
+func (c *cycle) percentile10() float64 {
+	return c.m.Percentile(0.10)
 }
 
-func (c *cycle) quantile90() float64 {
-	return c.quantile(90)
-}
-
-func (c *cycle) quantile(q int) float64 {
-	return 0
+func (c *cycle) percentile90() float64 {
+	return c.m.Percentile90(0.90)
 }
 
 type Tilestat struct {
 	flowcells   map[string]*flowcell // record quality by flowcell,lane,tile
-	quals       map[byte]int         // record full quality count distribution
+	quals       map[int]int          // record full quality count distribution
 	qualByCycle map[int]*cycle       // record quality by position
 	max         byte                 // max quality score
 	min         byte                 // min quality score
@@ -127,7 +119,7 @@ func (t *Tilestat) Count(fq *fastq.Fastq) error {
 	}
 
 	for i, q := range fq.Qual { // record each quality
-		t.quals[q]++
+		t.quals[int(q)]++
 		ncycle, ok := t.qualByCycle[i]
 		if !ok {
 			ncycle = &cycle{pos: i, qs: make(map[byte]int)}
@@ -143,20 +135,20 @@ func (t *Tilestat) Count(fq *fastq.Fastq) error {
 		}
 		mcycle, ok := mtile[i]
 		if !ok {
-			mcycle = &cycle{pos: i, qs: make(map[byte]int)}
+			mcycle = &cycle{pos: i, m: stat.NewIntMap(map[int]int{})}
 			mtile.cycles[i] = mcycle
 		}
-		mcycle.qs[q]++
+		mcycle.m.Data[int(q)]++
 	}
 	return nil
 }
 
-func (t *Tilestat) MinQual() byte {
-	return t.min
+func (t *Tilestat) MinQual() int {
+	return int(t.min)
 }
 
-func (t *Tilestat) MaxQual() byte {
-	return t.max
+func (t *Tilestat) MaxQual() int {
+	return int(t.max)
 }
 
 // GuessEncoding Guess quality Encoding version
@@ -174,6 +166,8 @@ func (t *Tilestat) GuessEncoding() string {
 		return "Illumina1.8+"
 	} else if t.min > 58 && t.min < 64 {
 		return "Solexa"
+	} else if t.min > 63 && t.min < 66 {
+		return "Illumina1.3+"
 	} else if t.min > 65 {
 		return "Illumina11.5+"
 	}
@@ -300,7 +294,7 @@ func (t *Tilestat) SaveTileStat(prefix string) error {
 						result = append(result, "0")
 						continue
 					}
-					result = append(result, fmt.Sprintf("%.1f", cycle.meanQual()))
+					result = append(result, fmt.Sprintf("%.1f", cycle.medianQ()))
 				}
 				// print tile lane
 				fmt.Fprintln(f, strings.Join(result, "\t"))
