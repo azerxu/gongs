@@ -1,9 +1,10 @@
 package fastq
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
-	"gongs/lib"
+	"gongs/scan"
+	"gongs/xopen"
 	"io"
 	"os"
 	"strings"
@@ -12,178 +13,203 @@ import (
 
 type Fastq struct {
 	Name string
-	Seq  string
-	Qual string
+	Seq  []byte
+	Qual []byte
 }
 
 func (fq Fastq) String() string {
-	return fmt.Sprintf("@%s\n%s\n+\n%s", fq.Name, fq.Seq, fq.Qual)
+	return fmt.Sprintf("@%v\n%v\n+\n%v", fq.Name, string(fq.Seq), string(fq.Qual))
 }
 
 func (fq Fastq) IsFilter() bool {
 	return strings.Contains(fq.Name, ":Y:")
 }
 
+func (fq Fastq) Id() string {
+	if n := strings.IndexByte(fq.Name, ' '); n >= 0 {
+		return fq.Name[:n]
+	}
+
+	// for old solexa data format
+	if n := strings.IndexByte(fq.Name, '#'); n >= 0 {
+		return fq.Name[:n]
+	}
+
+	return fq.Name
+}
+
 type FastqFile struct {
-	Name string
-	f    io.ReadCloser
-}
-
-func (fqfile *FastqFile) Load() <-chan *Fastq {
-	ch := make(chan *Fastq)
-	go run(fqfile.Name, fqfile.f, ch)
-	return ch
-}
-
-func (fqfile *FastqFile) Close() error {
-	return fqfile.f.Close()
+	Name  string
+	file  io.ReadCloser
+	s     *scan.Scanner
+	name  []byte
+	seq   []byte
+	qual  []byte
+	err   error
+	stage int
 }
 
 func Open(filename string) (*FastqFile, error) {
-	file, err := lib.Xopen(filename)
+	file, err := xopen.Xopen(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	if filename == "-" || filename == "" {
-		filename = "STDIN"
-	}
-
-	fqfile := &FastqFile{Name: filename, f: file}
-	return fqfile, nil
+	return &FastqFile{
+		Name: filename,
+		s:    scan.New(file),
+		file: file,
+	}, nil
 }
 
-// // Parse(file io.Reader, filename string)
-// func Parse(args ...interface{}) <-chan *Fastq {
-// 	var file io.Reader
-// 	var filename string
-// 	switch l := len(args); {
-// 	case l >= 2:
-// 		filename = args[1].(string)
-// 		fallthrough
-// 	case l == 1:
-// 		file = args[0].(io.Reader)
-// 	default:
-// 		file = os.Stdin
-// 	}
-// 	ch := make(chan *Fastq)
-// 	go run(filename, file, ch)
-// 	return ch
-// }
+func (ff *FastqFile) Close() error {
+	return ff.file.Close()
+}
 
-func run(filename string, file io.Reader, ch chan *Fastq) {
-	defer func() {
-		if err := recover(); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+func (ff *FastqFile) Err() error {
+	if ff.err == nil || ff.err == io.EOF {
+		if err := ff.s.Err(); err != nil {
+			return err
 		}
-	}()
+		return nil
+	}
+	return ff.err
+}
 
-	line, name, seq, qual, slen, qlen := "", "", []string{}, []string{}, 0, 0
-	handle := bufio.NewScanner(file)
-	for handle.Scan() {
-		line = strings.TrimSpace(handle.Text())
-		if len(line) == 0 || line[0] == '#' {
-			continue
-		}
+func (ff *FastqFile) setErr(err error) {
+	if ff.err == nil {
+		ff.err = err
+	}
+}
 
-		if line[0] != '@' {
-			panic(fmt.Errorf("%s is not a fastq format file", filename))
-		}
-		break
+func (ff *FastqFile) Next() bool {
+	if ff.err != nil {
+		return false
 	}
 
-	if len(line) == 0 { // nothing input, empty fastq file
+	var line []byte
+	for ff.s.Scan() {
+		line = bytes.TrimSpace(ff.s.Bytes())
+		if len(line) == 0 { // ingore empty line
+			continue
+		}
+		switch ff.stage {
+		case 0: // get fastq name
+			if len(line) > 0 && line[0] != '@' {
+				ff.setErr(fmt.Errorf("file: %v Wrong Fastq Record Name %s at line: %d", ff.Name, string(line), ff.s.Lid()))
+				return false
+			}
+			ff.stage++
+			ff.name = line[1:]
+			ff.seq = ff.seq[:0]   // clear seq
+			ff.qual = ff.qual[:0] // clear qual
+		case 1: // get fastq seq
+			if len(line) > 0 && line[0] == '+' {
+				ff.stage += 2
+				break
+			}
+			ff.seq = append(ff.seq, line...)
+		case 2: // get + line
+		case 3: // get fastq qual
+			ff.qual = append(ff.qual, line...)
+			if len(ff.qual) == len(ff.seq) {
+				ff.stage = 0
+				return true
+			} else if len(ff.qual) > len(ff.seq) {
+				ff.setErr(fmt.Errorf("file: %v Fastq Record (%s) qual length (%d) != seq length (%d) at line: %d",
+					ff.Name, string(ff.name), len(ff.qual), len(ff.seq), ff.s.Lid()))
+				return false
+			}
+		}
+	}
+	if len(ff.qual) < len(ff.seq) {
+		ff.setErr(fmt.Errorf("file: %v Fastq Record (%s) qual length (%d) != seq length (%d) at line: %d",
+			ff.Name, string(ff.name), len(ff.qual), len(ff.seq), ff.s.Lid()))
+	}
+	ff.setErr(io.EOF)
+	return false
+}
+
+func (ff *FastqFile) Value() *Fastq {
+	return &Fastq{Name: string(ff.name), Seq: ff.seq, Qual: ff.qual}
+}
+
+func (ff *FastqFile) Iter() <-chan *Fastq {
+	ch := make(chan *Fastq)
+	go func(ch chan *Fastq) {
+		for ff.Next() {
+			ch <- ff.Value()
+		}
 		close(ch)
-		return
-	}
-
-	name = line[1:]
-	isSeqBlock := true
-
-	for handle.Scan() {
-		line = strings.TrimSpace(handle.Text()) // trim space from both side
-
-		if len(line) == 0 { // ignore empty line
-			continue
-		}
-
-		if isSeqBlock {
-			if line[0] == '+' {
-				isSeqBlock = false
-			} else {
-				seq = append(seq, line)
-				slen += len(line)
-			}
-		} else {
-			if qlen > slen {
-				panic(fmt.Errorf("Error: while Parsing fastq Record(%s) at file(%s)", name, filename))
-			}
-
-			if line[0] == '@' { // at beginning of next fastq
-				if slen == qlen {
-					ch <- &Fastq{Name: name, Seq: strings.Join(seq, ""), Qual: strings.Join(qual, "")}
-					name, seq, qual, slen, qlen = line[1:], []string{}, []string{}, 0, 0
-					isSeqBlock = true
-				} else { // just a qual line begin with @
-					qual = append(qual, line)
-					qlen += len(line)
-				}
-			} else { // quality block
-				qual = append(qual, line)
-				qlen += len(line)
-			}
-		}
-	}
-
-	if len(name) != 0 || len(seq) != 0 { // check the last record
-		if slen != qlen {
-			panic(fmt.Errorf("Error: while Parsing fastq Record(%s) at file(%s)", name, filename))
-		}
-		ch <- &Fastq{Name: name, Seq: strings.Join(seq, ""), Qual: strings.Join(qual, "")}
-	}
-	close(ch)
+	}(ch)
+	return ch
 }
 
-func Load(filename string) (<-chan *Fastq, error) {
-	fqfile, err := Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	return fqfile.Load(), nil
-}
-
-func Loads(filenames ...string) (<-chan *Fastq, error) {
-	l := len(filenames)
-	if l == 0 {
-		return nil, fmt.Errorf("no fastq file given%s", "!!!")
-	}
-
-	fqfiles := []*FastqFile{}
-	for i := 0; i < l; i++ {
-		filename := filenames[i]
+func Opens(filenames ...string) ([]*FastqFile, error) {
+	fqfiles := make([]*FastqFile, len(filenames))
+	for i, filename := range filenames {
 		fqfile, err := Open(filename)
 		if err != nil {
 			return nil, err
 		}
-		fqfiles = append(fqfiles, fqfile)
+		fqfiles[i] = fqfile
+	}
+	return fqfiles, nil
+}
+
+func Load(filenames ...string) (<-chan *Fastq, <-chan error) {
+	fqChan := make(chan *Fastq, 2*len(filenames))
+	errChan := make(chan error, 1)
+
+	fqfiles, err := Opens(filenames...)
+	if err != nil {
+		errChan <- err
+		return nil, errChan
 	}
 
-	ch := make(chan *Fastq)
-	go func(ch chan *Fastq, fqfiles []*FastqFile) {
+	go func(fqChan chan *Fastq, errChan chan error, fqfiles []*FastqFile) {
+		for _, fqfile := range fqfiles {
+			defer fqfile.Close()
+			for fqfile.Next() {
+				fqChan <- fqfile.Value()
+			}
+			if err := fqfile.Err(); err != nil {
+				errChan <- err
+			}
+		}
+		close(fqChan)
+	}(fqChan, errChan, fqfiles)
+	return fqChan, errChan
+}
+
+func LoadMix(filenames ...string) (<-chan *Fastq, <-chan error) {
+	fqChan := make(chan *Fastq, 2*len(filenames))
+	errChan := make(chan error, 1)
+
+	fqfiles, err := Opens(filenames...)
+	if err != nil {
+		errChan <- err
+		return nil, errChan
+	}
+
+	go func(fqfiles []*FastqFile, fqChan chan *Fastq, errChan chan error) {
 		wg := &sync.WaitGroup{}
 		for _, fqfile := range fqfiles {
 			wg.Add(1)
-			go func(ch chan *Fastq, fqfile *FastqFile, wg *sync.WaitGroup) {
+			go func(wg *sync.WaitGroup, fqChan chan *Fastq, errChan chan error, fqfile *FastqFile) {
 				defer fqfile.Close()
-				for fq := range fqfile.Load() {
-					ch <- fq
+				for fqfile.Next() {
+					fmt.Fprintln(os.Stderr, fqfile.Value())
+					fqChan <- fqfile.Value()
+				}
+				if err := fqfile.Err(); err != nil {
+					errChan <- err
 				}
 				wg.Done()
-			}(ch, fqfile, wg)
+			}(wg, fqChan, errChan, fqfile)
 		}
 		wg.Wait()
-		close(ch)
-	}(ch, fqfiles)
-	return ch, nil
+		close(fqChan)
+	}(fqfiles, fqChan, errChan)
+	return fqChan, errChan
 }

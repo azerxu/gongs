@@ -5,7 +5,7 @@
 //   @@ stderr
 //   !! needed
 
-package arger
+package argparser
 
 import (
 	"fmt"
@@ -262,7 +262,7 @@ func (a *Parser) Usage() {
 		fmt.Fprintln(os.Stderr, "  Options:")
 
 		// 	sort opt in order not random
-		keys := make([]string, len(a.paras))
+		keys := []string{}
 		for key := range a.paras {
 			keys = append(keys, key)
 		}

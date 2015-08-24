@@ -1,13 +1,14 @@
 // Package command for command
 package command
 
-import "os"
-import "fmt"
-import "strings"
+import (
+	"fmt"
+	"os"
+	"strings"
+)
 
 const sepSpace = 10
 
-// SubCommand subcommand
 type SubCommand struct {
 	Name   string          // command name
 	Desc   string          // command description
@@ -47,6 +48,7 @@ func (cmd *Command) AddNew(name string, desc string, usage func(), runner func(.
 func (cmd *Command) Usage() {
 	l := sepSpace
 	for cmdName := range cmd.subCommands {
+
 		if len(cmdName) >= l {
 			l = len(cmdName) + 1
 		}
@@ -85,7 +87,7 @@ func (cmd *Command) Help(args ...string) {
 
 	subCmd, ok := cmd.subCommands[subCmdName]
 	if !ok {
-		fmt.Fprintf(os.Stderr, "Unkown SubCommand: %s\n\n", subCmdName)
+		fmt.Fprintln(os.Stderr, "Unkown SubCommand:", subCmdName, "\n")
 		cmd.HelpUsage()
 		return
 	}
@@ -93,6 +95,7 @@ func (cmd *Command) Help(args ...string) {
 }
 
 // Run run command
+
 func (cmd *Command) Run(args ...string) {
 	if len(args) == 0 {
 		cmd.Usage()
@@ -105,6 +108,7 @@ func (cmd *Command) Run(args ...string) {
 	if subCmdName == "help" {
 		cmd.Help(args...)
 		return
+
 	}
 	subCmd, ok := cmd.subCommands[subCmdName]
 	if !ok {
@@ -115,7 +119,8 @@ func (cmd *Command) Run(args ...string) {
 	subCmd.Runner(args...)
 }
 
-// New New(name, [desc, version])
+// New(name, [desc, version])
+
 func New(args ...string) *Command {
 	name := "command"
 	desc := "a command tool kit"
