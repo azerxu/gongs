@@ -51,7 +51,7 @@ type FastaFile struct {
 	file io.ReadCloser
 	s    *scan.Scanner
 	err  error
-	name []byte
+	name string
 	seq  []byte
 	last []byte
 }
@@ -99,7 +99,7 @@ func (ff *FastaFile) Next() bool {
 		return false
 	}
 
-	ff.name = ff.last[1:]
+	ff.name = string(ff.last[1:])
 	ff.last = ff.last[:0]
 	ff.seq = ff.seq[:0]
 	for ff.s.Scan() { // get fasta record sequence
@@ -115,7 +115,7 @@ func (ff *FastaFile) Next() bool {
 }
 
 func (ff *FastaFile) Value() *Fasta {
-	return &Fasta{Name: string(ff.name), Seq: string(ff.seq)}
+	return &Fasta{Name: ff.name, Seq: string(ff.seq)}
 }
 
 func (ff *FastaFile) Iter() <-chan *Fasta {
