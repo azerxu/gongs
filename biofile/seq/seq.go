@@ -13,7 +13,7 @@ type SeqFile struct {
 	file io.ReadCloser
 	s    *scan.Scanner
 	last []byte // record last line for read name
-	name []byte
+	name string
 	seq  []byte
 	qual []byte
 	err  error
@@ -65,7 +65,7 @@ func (sf *SeqFile) Next() bool {
 		sf.setErr(io.EOF)
 		return false
 	}
-	sf.name = sf.last[1:]
+	sf.name = string(sf.last[1:])
 	sf.last = sf.last[:0]
 
 	// scan sequence
@@ -95,7 +95,7 @@ func (sf *SeqFile) Next() bool {
 			return false
 		}
 	}
-	//	qual length  < seq length {
+	//	qual length  < seq length
 	sf.setErr(fmt.Errorf("file: %v Fastq Record (%s) qual length (%d) longer than seq length (%d) at line: %d",
 		sf.Name, string(sf.name), len(sf.qual), len(sf.seq), sf.s.Lid()))
 	return false
