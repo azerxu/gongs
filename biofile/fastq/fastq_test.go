@@ -284,3 +284,26 @@ func Test_Loads_nil(t *testing.T) {
 		t.Fail()
 	}
 }
+
+func TestSeqs(t *testing.T) {
+	create_test_fastq_file(test_fq_filename)
+	defer os.Remove(test_fq_filename)
+
+	fqfile, err := Open(test_fq_filename)
+	if err != nil {
+		t.Error("Test FastqFile error:", err)
+	}
+	defer fqfile.Close()
+
+	if fqfile.Name != test_fq_filename {
+		t.Error("Test FastqFile Name:", fqfile.Name, "expect:", test_fq_filename)
+	}
+
+	for seq := range fqfile.Seqs() {
+		fq := &Fastq{Name: seq.GetName(), Seq: seq.GetSeq(), Qual: seq.GetQual()}
+		if !checkFq(fq) {
+			t.Error("Test FastqFile Name:", []byte(fq.Name), "Qual:", string(fq.Qual), "Seq:", string(fq.Seq), "Lid:", fqfile.s.Lid())
+			t.FailNow()
+		}
+	}
+}
