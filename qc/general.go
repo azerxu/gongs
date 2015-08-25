@@ -1,4 +1,4 @@
-package gc
+package qc
 
 import (
 	"gongs/lib"
@@ -25,9 +25,9 @@ func Stat(filename string) *FileInfo {
 	var fsize, md5sum string
 	for {
 		select {
-		case fsize <- sizech:
+		case fsize = <-sizech:
 			sizech = nil
-		case md5sum <- md5ch:
+		case md5sum = <-md5ch:
 			md5ch = nil
 		}
 		if sizech == nil && md5ch == nil {

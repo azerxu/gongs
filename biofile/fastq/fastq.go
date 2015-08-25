@@ -21,20 +21,21 @@ func (fq Fastq) String() string {
 	return fmt.Sprintf("@%v\n%v\n+\n%v", fq.Name, string(fq.Seq), string(fq.Qual))
 }
 
+func (fq Fastq) IsFilter() bool {
+	return strings.Contains(fq.Name, ":Y:")
+}
+
 func (fq Fastq) Id() string {
 	if n := strings.IndexByte(fq.Name, ' '); n >= 0 {
 		return fq.Name[:n]
 	}
+
 	// for old solexa data format
 	if n := strings.IndexByte(fq.Name, '#'); n >= 0 {
 		return fq.Name[:n]
 	}
 
 	return fq.Name
-}
-
-func (fq Fastq) IsFilter() bool {
-	return strings.Contains(fq.Name, ":Y:")
 }
 
 type FastqFile struct {
@@ -52,6 +53,9 @@ func Open(filename string) (*FastqFile, error) {
 	file, err := xopen.Xopen(filename)
 	if err != nil {
 		return nil, err
+	}
+	if filename == "-" {
+		filename = "STDIN"
 	}
 
 	return &FastqFile{
@@ -92,6 +96,7 @@ func (ff *FastqFile) Next() bool {
 		if len(line) == 0 { // ingore empty line
 			continue
 		}
+		// fmt.Fprintln(os.Stderr, "stage:", ff.stage, "lid:", ff.s.Lid(), "name:", ff.name, "qual:", ff.qual, "seq:", ff.seq)
 		switch ff.stage {
 		case 0: // get fastq name
 			if len(line) > 0 && line[0] != '@' {
@@ -111,12 +116,13 @@ func (ff *FastqFile) Next() bool {
 		case 2: // get + line
 		case 3: // get fastq qual
 			ff.qual = append(ff.qual, line...)
+			//			fmt.Fprintln(os.Stderr, ff.stage, ff.s.Lid(), ff.qual, ff.seq)
 			if len(ff.qual) == len(ff.seq) {
 				ff.stage = 0
 				return true
 			} else if len(ff.qual) > len(ff.seq) {
-				ff.setErr(fmt.Errorf("file: %v Fastq Record (%s) qual length (%d) != seq length (%d) at line: %d",
-					ff.Name, string(ff.name), len(ff.qual), len(ff.seq), ff.s.Lid()))
+				ff.setErr(fmt.Errorf("file: %v Fastq Record (%s) qual (%s) length (%d) != seq (%s) length (%d) at line: %d",
+					ff.Name, string(ff.name), ff.qual, len(ff.qual), ff.seq, len(ff.seq), ff.s.Lid()))
 				return false
 			}
 		}
@@ -177,6 +183,7 @@ func Load(filenames ...string) (<-chan *Fastq, <-chan error) {
 			}
 		}
 		close(fqChan)
+		close(errChan)
 	}(fqChan, errChan, fqfiles)
 	return fqChan, errChan
 }
