@@ -17,7 +17,19 @@ const (
 
 type Fasta struct {
 	Name string
-	Seq  string
+	Seq  []byte
+}
+
+func (fa Fasta) GetName() string {
+	return fa.Name
+}
+
+func (fa Fasta) GetSeq() []byte {
+	return fa.Seq
+}
+
+func (fa Fasta) GetQual() []byte {
+	return nil
 }
 
 func (fa Fasta) String() string {
@@ -66,7 +78,6 @@ func Open(filename string) (*FastaFile, error) {
 		Name: filename,
 		file: file,
 		s:    scan.New(file),
-		seq:  make([]byte, 1024),
 	}, nil
 }
 
@@ -114,15 +125,19 @@ func (ff *FastaFile) Next() bool {
 	return true
 }
 
-func (ff *FastaFile) Value() *Fasta {
-	return &Fasta{Name: ff.name, Seq: string(ff.seq)}
+func (ff *FastaFile) Fa() *Fasta {
+	return &Fasta{Name: ff.name, Seq: ff.seq}
+}
+
+func (ff *FastaFile) Value() (string, []byte, []byte) {
+	return ff.name, ff.seq, nil
 }
 
 func (ff *FastaFile) Iter() <-chan *Fasta {
 	ch := make(chan *Fasta)
 	go func(ch chan *Fasta, ff *FastaFile) {
 		for ff.Next() {
-			ch <- ff.Value()
+			ch <- ff.Fa()
 		}
 		close(ch)
 	}(ch, ff)
