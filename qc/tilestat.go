@@ -63,6 +63,14 @@ func (c *cycle) percentile10() float64 {
 	return c.m.Percentile(0.10)
 }
 
+func (c *cycle) percentile25() float64 {
+	return c.m.Percentile(0.25)
+}
+
+func (c *cycle) percentile75() float64 {
+	return c.m.Percentile(0.75)
+}
+
 func (c *cycle) percentile90() float64 {
 	return c.m.Percentile(0.90)
 }
@@ -88,7 +96,7 @@ func NewTile() *Tilestat {
 // Count count quality by postion and flowcell,lane,tile
 func (t *Tilestat) Count(fq *fastq.Fastq) error {
 	ids := strings.SplitN(fq.Name, ":", 6)
-	fmt.Println(ids)
+	// fmt.Println(ids)
 	flowid := ids[2]
 	laneid, err := strconv.Atoi(ids[3])
 	if err != nil {
@@ -240,13 +248,14 @@ func (t *Tilestat) SaveCycleStat(prefix string) error {
 	defer f.Close()
 
 	// print header line
-	header := []string{"cycle", "minQ", "maxQ", "meanQ", "MedianQ", "quantile10", "quantile90"}
+	header := []string{"cycle", "minQ", "maxQ", "meanQ", "medianQ", "percentile10", "percentile25", "percentile75", "percentile90"}
 	fmt.Fprintln(f, "##", strings.Join(header, "\t"))
 
 	// print data line
 	for i, l := 0, len(t.qualByCycle); i < l; i++ {
 		c := t.qualByCycle[i]
-		fmt.Fprintln(f, i, "\t", c.minQ(), "\t", c.maxQ(), "\t", c.meanQ(), "\t", c.medianQ(), "\t", c.percentile10(), "\t", c.percentile10())
+		fmt.Fprintln(f, i, "\t", c.minQ(), "\t", c.maxQ(), "\t", c.meanQ(), "\t", c.medianQ(), "\t",
+			c.percentile10(), "\t", c.percentile25(), "\t", c.percentile75(), "\t", c.percentile90())
 	}
 	return nil
 }
