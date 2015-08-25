@@ -14,13 +14,6 @@ const (
 	test_qual     = "@AAA"
 )
 
-// func checkFq(fq *Fastq) bool {
-// 	if fq.Name != test_fq_name || string(fq.Seq) != string(test_fq_seq) || string(fq.Qual) != string(test_fq_qual) {
-// 		return false
-// 	}
-// 	return true
-// }
-
 func create_test_fastq_file(filename string) error {
 	o, err := xopen.Xcreate(filename, "w")
 	if err != nil {
@@ -48,9 +41,7 @@ func TestScannerTxt(t *testing.T) {
 	}
 
 	s := New(file)
-
 	var line []byte
-
 	lid := 0
 	for s.Scan() {
 		line = s.Bytes()
@@ -88,7 +79,7 @@ func TestScannerGz(t *testing.T) {
 		t.Error(err)
 		t.Fail()
 	}
-	//	defer os.Remove(test_filename + ".gz")
+	defer os.Remove(test_filename + ".gz")
 
 	file, err := xopen.Xopen(test_filename + ".gz")
 	if err != nil {
@@ -97,9 +88,7 @@ func TestScannerGz(t *testing.T) {
 	}
 
 	s := New(file)
-
 	var line []byte
-
 	lid := 0
 	for s.Scan() {
 		line = s.Bytes()
