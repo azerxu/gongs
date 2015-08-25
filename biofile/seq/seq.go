@@ -136,9 +136,9 @@ func (sf *SeqFile) Value() (string, []byte, []byte) {
 	return sf.name, sf.seq, sf.qual
 }
 
-func (sf *SeqFile) Items() <-chan biofile.Seqer {
-	ch := make(chan *Seq)
-	go func(sf *SeqFile, ch chan *Seq) {
+func (sf *SeqFile) Seqs() <-chan biofile.Seqer {
+	ch := make(chan biofile.Seqer)
+	go func(sf *SeqFile, ch chan biofile.Seqer) {
 		for sf.Next() {
 			ch <- sf.Seq()
 		}
