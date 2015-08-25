@@ -18,6 +18,18 @@ type Fastq struct {
 	Qual []byte
 }
 
+func (fq Fastq) GetName() string {
+	return fq.Name
+}
+
+func (fq Fastq) GetSeq() []byte {
+	return fq.Seq
+}
+
+func (fq Fastq) GetQual() []byte {
+	return fq.Qual
+}
+
 func (fq Fastq) String() string {
 	return fmt.Sprintf("@%v\n%v\n+\n%v", fq.Name, string(fq.Seq), string(fq.Qual))
 }
@@ -134,15 +146,19 @@ func (ff *FastqFile) Next() bool {
 	return false
 }
 
-func (ff *FastqFile) Value() *Fastq {
+func (ff *FastqFile) Fq() *Fastq {
 	return &Fastq{Name: ff.name, Seq: ff.seq, Qual: ff.qual}
+}
+
+func (ff *FastqFile) Value() (string, []byte, []byte) {
+	return ff.name, ff.seq, ff.qual
 }
 
 func (ff *FastqFile) Iter() <-chan *Fastq {
 	ch := make(chan *Fastq)
 	go func(ch chan *Fastq) {
 		for ff.Next() {
-			ch <- ff.Value()
+			ch <- ff.Fq()
 		}
 		close(ch)
 	}(ch)
@@ -179,7 +195,7 @@ func Load(filenames ...string) (<-chan *Fastq, <-chan error) {
 		for _, fqfile := range fqfiles {
 			defer fqfile.Close()
 			for fqfile.Next() {
-				fqChan <- fqfile.Value()
+				fqChan <- fqfile.Fq()
 			}
 			if err := fqfile.Err(); err != nil {
 				errChan <- err
@@ -208,8 +224,8 @@ func LoadMix(filenames ...string) (<-chan *Fastq, <-chan error) {
 			go func(wg *sync.WaitGroup, fqChan chan *Fastq, errChan chan error, fqfile *FastqFile) {
 				defer fqfile.Close()
 				for fqfile.Next() {
-					fmt.Fprintln(os.Stderr, fqfile.Value())
-					fqChan <- fqfile.Value()
+					fmt.Fprintln(os.Stderr, fqfile.Fq())
+					fqChan <- fqfile.Fq()
 				}
 				if err := fqfile.Err(); err != nil {
 					errChan <- err
