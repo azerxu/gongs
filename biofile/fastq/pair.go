@@ -91,12 +91,21 @@ func OpenPair(filename1, filename2 string) (*FastqPairFile, error) {
 }
 
 func OpenPairs(filenames ...string) ([]*FastqPairFile, error) {
-	return &PairFile{
-		Name1: filename1,
-		Name2: filename2,
-		file1: file1,
-		file2: file2,
-	}, nil
+	n := len(filenames)
+	if n == 0 {
+		return nil, ErrEmptyInputFile
+	} else if n%2 != 0 {
+		return nil, ErrUnPairInputFile
+	}
+	pfs := make([]*FastqPairFile, n%2)
+	for i := 0; i < n; i += 2 {
+		pf, err := OpenPair(filenames[i], filenames[i+1])
+		if err != nil {
+			return nil, err
+		}
+		pfs[i/2] = pf
+	}
+	return pfs, nil
 }
 
 func Iter(filenames ...string) (<-chan *Pair, error) {
