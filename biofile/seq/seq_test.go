@@ -3,6 +3,7 @@ package seq
 import (
 	"fmt"
 	"gongs/xopen"
+	"os"
 	"testing"
 )
 
@@ -18,7 +19,7 @@ func checkSeq(name string, seq, qual []byte) bool {
 	return true
 }
 
-func createTestFastqFile(filename string) error {
+func createTestSeqFile(filename string) error {
 	o, err := xopen.Xcreate(filename, "w")
 	if err != nil {
 		return err
@@ -31,8 +32,8 @@ func createTestFastqFile(filename string) error {
 	return nil
 }
 
-func TestFastqFileTxt(t *testing.T) {
-	if err := createTestFastqFile(test_fq_filename); err != nil {
+func TestSeqFileTxt(t *testing.T) {
+	if err := createTestSeqFile(test_fq_filename); err != nil {
 		t.Error("Test FastqFile txt create test fastq error:", err)
 	}
 	seqFile, err := Open(test_fq_filename)
@@ -53,9 +54,9 @@ func TestFastqFileTxt(t *testing.T) {
 		}
 	}
 
-	// if err := os.Remove(test_fq_filename); err != nil {
-	// 	t.Error("Test FastqFile Remove file Error:", err)
-	// }
+	if err := os.Remove(test_fq_filename); err != nil {
+		t.Error("Test FastqFile Remove file Error:", err)
+	}
 }
 
 // func Test_FastqFile_gz(t *testing.T) {
