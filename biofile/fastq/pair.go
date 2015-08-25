@@ -83,6 +83,7 @@ func OpenPair(filename1, filename2 string) (*FastqPairFile, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &FastqPairFile{
 		ff1: ff1,
 		ff2: ff2,
@@ -90,22 +91,12 @@ func OpenPair(filename1, filename2 string) (*FastqPairFile, error) {
 }
 
 func OpenPairs(filenames ...string) ([]*FastqPairFile, error) {
-	if l := len(filenames); l == 0 {
-		return nil, ErrEmptyInputFile
-	} else if l%2 != 0 {
-		return nil, ErrUnPairInputFile
-	}
-	pfs := make([]*FastqPairFile, len(filenames)/2)
-	for i := 0; i < len(filenames); i += 2 {
-		filename1 := filenames[i]
-		filename2 := filenames[i+1]
-		pf, err := OpenPair(filename1, filename2)
-		if err != nil {
-			return nil, err
-		}
-		pfs[i/2] = pf
-	}
-	return pfs, nil
+	return &PairFile{
+		Name1: filename1,
+		Name2: filename2,
+		file1: file1,
+		file2: file2,
+	}, nil
 }
 
 func Iter(filenames ...string) (<-chan *Pair, error) {

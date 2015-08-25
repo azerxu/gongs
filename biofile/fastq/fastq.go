@@ -11,6 +11,7 @@ import (
 	"sync"
 )
 
+// Fastq (Name, Seq, Qual)
 type Fastq struct {
 	Name string
 	Seq  []byte
