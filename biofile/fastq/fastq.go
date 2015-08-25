@@ -43,7 +43,7 @@ type FastqFile struct {
 	Name  string
 	file  io.ReadCloser
 	s     *scan.Scanner
-	name  []byte
+	name  string
 	seq   []byte
 	qual  []byte
 	err   error
@@ -97,7 +97,6 @@ func (ff *FastqFile) Next() bool {
 		if len(line) == 0 { // ingore empty line
 			continue
 		}
-		// fmt.Fprintln(os.Stderr, "stage:", ff.stage, "lid:", ff.s.Lid(), "name:", ff.name, "qual:", ff.qual, "seq:", ff.seq)
 		switch ff.stage {
 		case 0: // get fastq name
 			if len(line) > 0 && line[0] != '@' {
@@ -105,7 +104,7 @@ func (ff *FastqFile) Next() bool {
 				return false
 			}
 			ff.stage++
-			ff.name = line[1:]
+			ff.name = string(line[1:])
 			ff.seq = ff.seq[:0]   // clear seq
 			ff.qual = ff.qual[:0] // clear qual
 		case 1: // get fastq seq
@@ -117,7 +116,6 @@ func (ff *FastqFile) Next() bool {
 		case 2: // get + line
 		case 3: // get fastq qual
 			ff.qual = append(ff.qual, line...)
-			//			fmt.Fprintln(os.Stderr, ff.stage, ff.s.Lid(), ff.qual, ff.seq)
 			if len(ff.qual) == len(ff.seq) {
 				ff.stage = 0
 				return true
@@ -137,7 +135,7 @@ func (ff *FastqFile) Next() bool {
 }
 
 func (ff *FastqFile) Value() *Fastq {
-	return &Fastq{Name: string(ff.name), Seq: ff.seq, Qual: ff.qual}
+	return &Fastq{Name: ff.name, Seq: ff.seq, Qual: ff.qual}
 }
 
 func (ff *FastqFile) Iter() <-chan *Fastq {
