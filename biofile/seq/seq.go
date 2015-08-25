@@ -2,21 +2,11 @@ package seq
 
 import (
 	"fmt"
+	"gongs/biofile"
 	"gongs/scan"
 	"gongs/xopen"
 	"io"
 )
-
-type Seqer interface {
-	GetName() string
-	GetSeq() []byte
-	GetQual() []byte
-}
-
-type SeqIter interface {
-	Next() bool
-	Value() (string, []byte, []byte)
-}
 
 type Seq struct {
 	Name string
@@ -83,6 +73,10 @@ func (sf *SeqFile) setErr(err error) {
 	}
 }
 
+func (sf *SeqFile) Seq() *Seq {
+	return &Seq{Name: sf.name, Seq: sf.seq, qual: sf.qual}
+}
+
 func (sf *SeqFile) Next() bool {
 	if sf.err != nil {
 		return false
@@ -142,6 +136,13 @@ func (sf *SeqFile) Value() (string, []byte, []byte) {
 	return sf.name, sf.seq, sf.qual
 }
 
-func (sf *SeqFile) Seq() *Seq {
-	return &Seq{Name: sf.name, Seq: sf.seq, qual: sf.qual}
+func (sf *SeqFile) Items() <-chan biofile.Seqer {
+	ch := make(chan *Seq)
+	go func(sf *SeqFile, ch chan *Seq) {
+		for sf.Next() {
+			ch <- sf.Seq()
+		}
+		close(ch)
+	}(sf, ch)
+	return ch
 }
