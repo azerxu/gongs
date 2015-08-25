@@ -7,13 +7,50 @@ import (
 	"io"
 )
 
+type Seqer interface {
+	GetName() string
+	GetSeq() []byte
+	GetQual() []byte
+}
+
+type SeqIter interface {
+	Next() bool
+	Value() (string, []byte, []byte)
+}
+
+type Seq struct {
+	Name string
+	Seq  []byte
+	Qual []byte
+}
+
+func (s Seq) String() string {
+	if seq.Qual == nil { // seq is fasta record
+		return fmt.Sprintf(">%s\n%s", s.Name, string(s.Seq))
+	}
+	// seq is fastq record
+	return fmt.Sprintf("@%s\n%s\n+\n%s", s.Name, string(s.Seq), string(s.Qual))
+}
+
+func (s Seq) GetName() string {
+	return s.Name
+}
+
+func (s Seq) GetSeq() []byte {
+	return s.Seq
+}
+
+func (s Seq) GetQual() []byte {
+	return nil
+}
+
 // SeqFile seq file for fasta or fastq
 type SeqFile struct {
-	Name string
+	Name string // record filename
 	file io.ReadCloser
 	s    *scan.Scanner
 	last []byte // record last line for read name
-	name string
+	name string // record seq name
 	seq  []byte
 	qual []byte
 	err  error
@@ -102,5 +139,9 @@ func (sf *SeqFile) Next() bool {
 }
 
 func (sf *SeqFile) Value() (string, []byte, []byte) {
-	return string(sf.name), sf.seq, sf.qual
+	return sf.name, sf.seq, sf.qual
+}
+
+func (sf *SeqFile) Seq() *Seq {
+	return &Seq{Name: sf.name, Seq: sf.seq, qual: sf.qual}
 }
