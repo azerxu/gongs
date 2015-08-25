@@ -1,14 +1,22 @@
+// fastq package read fastq file
+
 package fastq
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"gongs/biofile"
 	"gongs/scan"
 	"gongs/xopen"
 	"io"
 	"os"
 	"strings"
 	"sync"
+)
+
+var (
+	ErrEmptyInputFile = errors.New("No Input Fastq File Given")
 )
 
 // Fastq (Name, Seq, Qual)
@@ -31,7 +39,7 @@ func (fq Fastq) GetQual() []byte {
 }
 
 func (fq Fastq) String() string {
-	return fmt.Sprintf("@%v\n%v\n+\n%v", fq.Name, string(fq.Seq), string(fq.Qual))
+	return fmt.Sprintf("@%s\n%s\n+\n%s", fq.Name, string(fq.Seq), string(fq.Qual))
 }
 
 func (fq Fastq) IsFilter() bool {
@@ -165,6 +173,17 @@ func (ff *FastqFile) Iter() <-chan *Fastq {
 	return ch
 }
 
+func (ff *FastqFile) Seqs() <-chan biofile.Seqer {
+	ch := make(chan biofile.Seqer)
+	go func(ch chan biofile.Seqer) {
+		for ff.Next() {
+			ch <- ff.Fq()
+		}
+		close(ch)
+	}(ch)
+	return ch
+}
+
 func Opens(filenames ...string) ([]*FastqFile, error) {
 	if len(filenames) == 0 {
 		return nil, ErrEmptyInputFile
@@ -235,6 +254,7 @@ func LoadMix(filenames ...string) (<-chan *Fastq, <-chan error) {
 		}
 		wg.Wait()
 		close(fqChan)
+		close(errChan)
 	}(fqfiles, fqChan, errChan)
 	return fqChan, errChan
 }
