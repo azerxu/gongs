@@ -4,6 +4,7 @@ package fasta
 
 import (
 	"fmt"
+	"gongs/biofile"
 	"gongs/scan"
 	"gongs/xopen"
 	"io"
@@ -136,6 +137,17 @@ func (ff *FastaFile) Value() (string, []byte, []byte) {
 func (ff *FastaFile) Iter() <-chan *Fasta {
 	ch := make(chan *Fasta)
 	go func(ch chan *Fasta, ff *FastaFile) {
+		for ff.Next() {
+			ch <- ff.Fa()
+		}
+		close(ch)
+	}(ch, ff)
+	return ch
+}
+
+func (ff *FastaFile) Seqs() <-chan biofile.Seqer {
+	ch := make(chan biofile.Seqer)
+	go func(ch chan biofile.Seqer, ff *FastaFile) {
 		for ff.Next() {
 			ch <- ff.Fa()
 		}
