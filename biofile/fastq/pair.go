@@ -3,17 +3,25 @@ package fastq
 import (
 	"errors"
 	"fmt"
+	"gongs/biofile"
 	"sync"
 )
 
 var (
-	ErrEmptyInputFile  = errors.New("No Input Fastq File Given")
 	ErrUnPairInputFile = errors.New("Input Fastq File Not Paired")
 )
 
 type Pair struct {
 	Read1 *Fastq
 	Read2 *Fastq
+}
+
+func (p Pair) GetRead1() biofile.Seqer {
+	return p.Read1
+}
+
+func (p Pair) GetRead2() biofile.Seqer {
+	return p.Read2
 }
 
 func (p Pair) String() string {
@@ -56,18 +64,30 @@ func (pf *FastqPairFile) Next() bool {
 	return false
 }
 
-func (pf *FastqPairFile) Value() *Pair {
-	return &Pair{
-		Read1: pf.ff1.Value(),
-		Read2: pf.ff2.Value(),
-	}
+func (pf *FastqPairFile) Value() (biofile.Seqer, biofile.Seqer) {
+	return pf.ff1.Fq(), pf.ff2.Fq()
+}
+
+func (pf *FastqPairFile) Pair() *Pair {
+	return &Pair{Read1: pf.ff1.Fq(), Read2: pf.ff2.Fq()}
 }
 
 func (pf *FastqPairFile) Iter() <-chan *Pair {
 	out := make(chan *Pair)
 	go func(pf *FastqPairFile, out chan *Pair) {
 		for pf.Next() {
-			out <- pf.Value()
+			out <- pf.Pair()
+		}
+		close(out)
+	}(pf, out)
+	return out
+}
+
+func (pf *FastqPairFile) Pairs() <-chan biofile.PairSeqer {
+	out := make(chan biofile.PairSeqer)
+	go func(pf *FastqPairFile, out chan biofile.PairSeqer) {
+		for pf.Next() {
+			out <- pf.Pair()
 		}
 		close(out)
 	}(pf, out)
@@ -108,31 +128,6 @@ func OpenPairs(filenames ...string) ([]*FastqPairFile, error) {
 	return pfs, nil
 }
 
-func Iter(filenames ...string) (<-chan *Pair, error) {
-	pfs, err := OpenPairs(filenames...)
-	if err != nil {
-		return nil, err
-	}
-
-	ch := make(chan *Pair, 4*len(pfs))
-	go func(ch chan *Pair, pfs []*FastqPairFile) {
-		wg := &sync.WaitGroup{}
-		wg.Add(len(pfs))
-		for _, pf := range pfs {
-			go func(ch chan *Pair, pf *FastqPairFile, wg *sync.WaitGroup) {
-				defer pf.Close()
-				for pf.Next() {
-					ch <- pf.Value()
-				}
-				wg.Done()
-			}(ch, pf, wg)
-		}
-		wg.Wait()
-		close(ch)
-	}(ch, pfs)
-	return ch, nil
-}
-
 func LoadPair(filenames ...string) (<-chan *Pair, <-chan error) {
 	pChan := make(chan *Pair, len(filenames))
 	errChan := make(chan error, 1)
@@ -147,13 +142,14 @@ func LoadPair(filenames ...string) (<-chan *Pair, <-chan error) {
 		for _, pf := range pfs {
 			defer pf.Close()
 			for pf.Next() {
-				pChan <- pf.Value()
+				pChan <- pf.Pair()
 			}
 			if err := pf.Err(); err != nil {
 				errChan <- err
 			}
 		}
 		close(pChan)
+		close(errChan)
 	}(pfs, pChan, errChan)
 	return pChan, errChan
 }
@@ -175,7 +171,7 @@ func LoadPairMix(filenames ...string) (<-chan *Pair, <-chan error) {
 			go func(pf *FastqPairFile, wg *sync.WaitGroup, pChan chan *Pair, errChan chan error) {
 				defer pf.Close()
 				for pf.Next() {
-					pChan <- pf.Value()
+					pChan <- pf.Pair()
 				}
 				if err := pf.Err(); err != nil {
 					errChan <- err
@@ -185,6 +181,7 @@ func LoadPairMix(filenames ...string) (<-chan *Pair, <-chan error) {
 		}
 		wg.Wait()
 		close(pChan)
+		close(errChan)
 	}(pfs, pChan, errChan)
 	return pChan, errChan
 }
