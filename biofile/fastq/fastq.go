@@ -150,6 +150,10 @@ func (ff *FastqFile) Iter() <-chan *Fastq {
 }
 
 func Opens(filenames ...string) ([]*FastqFile, error) {
+	if len(filenames) == 0 {
+		return nil, ErrEmptyInputFile
+	}
+
 	fqfiles := make([]*FastqFile, len(filenames))
 	for i, filename := range filenames {
 		fqfile, err := Open(filename)
