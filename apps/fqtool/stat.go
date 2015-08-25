@@ -37,9 +37,9 @@ func statRun(args ...string) error {
 		return err
 	}
 
-	prefix := statArger.Get("prefix").(string)
+	// prefix := statArger.Get("prefix").(string)
 
 	// setting multi-threads
 	setThread(statArger.Get("thread").(int))
-
+	return nil
 }
