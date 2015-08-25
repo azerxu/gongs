@@ -16,12 +16,12 @@ func NewQual() *Qual {
 }
 
 func (q *Qual) Count(qual string) {
-	for i, qu := range qual {
-		if max < qu {
-			max = qu
+	for i, qu := range []byte(qual) {
+		if q.max < qu {
+			q.max = qu
 		}
-		if min > qu {
-			min = qu
+		if q.min > qu {
+			q.min = qu
 		}
 		q.stat[qu]++
 		mm, ok := q.pos[i]

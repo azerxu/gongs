@@ -1,8 +1,8 @@
 package qc
 
 import (
-	"biofile/fastq"
 	"fmt"
+	"gongs/biofile/fastq"
 	"gongs/stat"
 	"gongs/xopen"
 	"sort"
@@ -64,7 +64,7 @@ func (c *cycle) percentile10() float64 {
 }
 
 func (c *cycle) percentile90() float64 {
-	return c.m.Percentile90(0.90)
+	return c.m.Percentile(0.90)
 }
 
 type Tilestat struct {
@@ -78,7 +78,7 @@ type Tilestat struct {
 func NewTile() *Tilestat {
 	return &Tilestat{
 		flowcells:   make(map[string]*flowcell),
-		quals:       make(map[byte]int),
+		quals:       make(map[int]int),
 		qualByCycle: make(map[int]*cycle),
 		max:         0,
 		min:         127,
@@ -88,6 +88,7 @@ func NewTile() *Tilestat {
 // Count count quality by postion and flowcell,lane,tile
 func (t *Tilestat) Count(fq *fastq.Fastq) error {
 	ids := strings.SplitN(fq.Name, ":", 6)
+	fmt.Println(ids)
 	flowid := ids[2]
 	laneid, err := strconv.Atoi(ids[3])
 	if err != nil {
@@ -122,10 +123,10 @@ func (t *Tilestat) Count(fq *fastq.Fastq) error {
 		t.quals[int(q)]++
 		ncycle, ok := t.qualByCycle[i]
 		if !ok {
-			ncycle = &cycle{pos: i, qs: make(map[byte]int)}
+			ncycle = &cycle{pos: i, m: stat.NewIntMap(make(map[int]int))}
 			t.qualByCycle[i] = ncycle
 		}
-		ncycle.qs[q]++
+		ncycle.m.Data[int(q)]++
 
 		if t.min > q {
 			t.min = q
@@ -133,7 +134,7 @@ func (t *Tilestat) Count(fq *fastq.Fastq) error {
 		if t.max < q {
 			t.max = q
 		}
-		mcycle, ok := mtile[i]
+		mcycle, ok := mtile.cycles[i]
 		if !ok {
 			mcycle = &cycle{pos: i, m: stat.NewIntMap(map[int]int{})}
 			mtile.cycles[i] = mcycle
@@ -189,7 +190,7 @@ func (t *Tilestat) Q(q byte) float64 {
 	tot := 0
 	for qu, count := range t.quals {
 		tot += count
-		if qu < q {
+		if qu < int(q) {
 			continue
 		}
 		c += count
@@ -199,7 +200,7 @@ func (t *Tilestat) Q(q byte) float64 {
 
 // Qat return qual count
 func (t *Tilestat) Qat(q byte) int {
-	return t.quals[q]
+	return t.quals[int(q)]
 }
 
 // Save file block
@@ -225,7 +226,7 @@ func (t *Tilestat) SaveQualDist(prefix string) error {
 
 	// print data line
 	fmt.Fprint(f, strconv.Itoa(int(t.min)), "\t", strconv.Itoa(int(t.max)))
-	for i := t.min; i < t.max+1; i++ {
+	for i, max := int(t.min), int(t.max); i < max+1; i++ {
 		fmt.Fprint(f, "\t", strconv.Itoa(t.quals[i]))
 	}
 	return nil
@@ -245,8 +246,9 @@ func (t *Tilestat) SaveCycleStat(prefix string) error {
 	// print data line
 	for i, l := 0, len(t.qualByCycle); i < l; i++ {
 		c := t.qualByCycle[i]
-		fmt.Fprintln(f, i, "\t", c.minQ(), "\t", c.maxQ(), "\t", c.meanQ(), "\t", c.medianQ(), "\t", c.quantile10(), "\t", c.quantile90())
+		fmt.Fprintln(f, i, "\t", c.minQ(), "\t", c.maxQ(), "\t", c.meanQ(), "\t", c.medianQ(), "\t", c.percentile10(), "\t", c.percentile10())
 	}
+	return nil
 }
 
 // SaveTileStat save Tile qualtity stat
@@ -270,23 +272,23 @@ func (t *Tilestat) SaveTileStat(prefix string) error {
 
 		// get sorted  laneids
 		laneids := []int{}
-		for laneid := range mflow {
+		for laneid := range mflow.lanes {
 			laneids = append(laneids, laneid)
 		}
 		sort.Ints(laneids)
 
 		for _, laneid := range laneids { // iterate each lane
-			mlane := mflow[laneid]
+			mlane := mflow.lanes[laneid]
 
 			// get sorted tileids
 			tileids := []int{}
-			for tileid := range mlane {
+			for tileid := range mlane.tiles {
 				tileids = append(tileids, tileid)
 			}
 			sort.Ints(tileids)
 
 			for _, tileid := range tileids { // iterate each tile
-				mtile := mlane[tileid]
+				mtile := mlane.tiles[tileid]
 				result := []string{flowid, strconv.Itoa(laneid), strconv.Itoa(tileid), strconv.Itoa(mflow.length)}
 				for i := 0; i < mflow.length; i++ {
 					cycle, ok := mtile.cycles[i]

@@ -13,7 +13,7 @@ func NewBase() *Base {
 }
 
 func (b *Base) Count(seq string) {
-	for i, nt := range seq {
+	for i, nt := range []byte(seq) {
 		b.stat[nt]++
 		mm, ok := b.pos[i]
 		if !ok {
@@ -31,6 +31,7 @@ func (b *Base) GC() float64 {
 }
 
 func (b *Base) Total() int {
+	tot := 0
 	for key, val := range b.stat {
 		if key == 'A' || key == 'a' || key == 'C' || key == 'c' || key == 'G' || key == 'g' || key == 'T' || key == 't' {
 			tot += val

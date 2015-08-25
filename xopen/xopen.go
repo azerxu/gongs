@@ -16,7 +16,7 @@ import (
 // BzipReadCloser add a Close function for bzip2
 type BzipReadCloser struct {
 	r    io.Reader
-	file *os.File
+	file io.Closer
 }
 
 // Read Using bzip2 Reader's Read method
