@@ -3,6 +3,7 @@ package fastq
 import (
 	"fmt"
 	"gongs/xopen"
+	"os"
 	"testing"
 )
 
@@ -72,171 +73,214 @@ func Test_FastqFile_txt(t *testing.T) {
 
 	for fq := range fqfile.Iter() {
 		if !checkFq(fq) {
-			t.Error("Test FastqFile fq:", fq.Name, fq.Qual, fq.Seq, "Lid:", fqfile.s.Lid())
+			t.Error("Test FastqFile Name:", []byte(fq.Name), "Qual:", string(fq.Qual), "Seq:", string(fq.Seq), "Lid:", fqfile.s.Lid())
+			t.FailNow()
 		}
 	}
-	// if err := os.Remove(test_fq_filename); err != nil {
-	// 	t.Error("Test FastqFile Remove file Error:", err)
-	// }
+	if err := os.Remove(test_fq_filename); err != nil {
+		t.Error("Test FastqFile Remove file Error:", err)
+	}
 }
 
-// func Test_FastqFile_gz(t *testing.T) {
-// 	filename := test_fq_filename + ".gz"
-// 	if err := create_test_fastq_file(filename); err != nil {
-// 		t.Error("Test FastqFile gz create test fastq error:", err)
-// 	}
-// 	fqfile, err := Open(filename)
-// 	defer fqfile.Close()
-// 	if err != nil {
-// 		t.Error("Test FastqFile gz error:", err)
-// 	}
-// 	if fqfile.Name != filename {
-// 		t.Error("Test FastqFile gz Name:", fqfile.Name, "expect:", test_fq_filename)
-// 	}
+func Test_FastqFile_gz(t *testing.T) {
+	filename := test_fq_filename + ".gz"
+	if err := create_test_fastq_file(filename); err != nil {
+		t.Error("Test FastqFile gz create test fastq error:", err)
+	}
+	fqfile, err := Open(filename)
+	defer fqfile.Close()
+	if err != nil {
+		t.Error("Test FastqFile gz error:", err)
+	}
+	if fqfile.Name != filename {
+		t.Error("Test FastqFile gz Name:", fqfile.Name, "expect:", test_fq_filename)
+	}
 
-// 	for fq := range fqfile.Iter() {
-// 		if !checkFq(fq) {
-// 			t.Error("Test FastqFile gz fq:", fq)
-// 		}
-// 	}
-// 	if err := os.Remove(filename); err != nil {
-// 		t.Error("Test FastqFile Remove file Error:", err)
-// 	}
-// }
+	for fq := range fqfile.Iter() {
+		if !checkFq(fq) {
+			t.Error("Test FastqFile gz fq:", fq)
+		}
+	}
+	if err := os.Remove(filename); err != nil {
+		t.Error("Test FastqFile Remove file Error:", err)
+	}
+}
 
-// func Test_FastqFile_nil(t *testing.T) {
-// 	_, err := Open("tt_inposable_FYLRMane")
-// 	if err == nil {
-// 		t.Error("Test FastqFile nil error:", err)
-// 	}
-// }
+func Test_FastqFile_nil(t *testing.T) {
+	_, err := Open("tt_inposable_FYLRMane")
+	if err == nil {
+		t.Error("Test FastqFile nil error:", err)
+	}
+}
 
-// func Test_FastqFile_errformat(t *testing.T) {
-// 	o, err := lib.Xcreate("tt")
-// 	if err != nil {
-// 		t.Fail()
-// 	}
-// 	fmt.Fprintln(o, "@tt")
-// 	fmt.Fprintln(o, "aaaa")
-// 	fmt.Fprintln(o, " ")
-// 	fmt.Fprintln(o, "+")
-// 	fmt.Fprintln(o, "aaa")
+func Test_FastqFile_errformat(t *testing.T) {
+	o, err := xopen.Xcreate("tt")
+	if err != nil {
+		t.Fail()
+	}
+	fmt.Fprintln(o, "@tt")
+	fmt.Fprintln(o, "aaaa")
+	fmt.Fprintln(o, " ")
+	fmt.Fprintln(o, "+")
+	fmt.Fprintln(o, "aaa")
 
-// 	o.Close()
-// 	defer os.Remove("tt")
+	o.Close()
+	defer os.Remove("tt")
 
-// 	fqfile, err := Open("tt")
-// 	if err != nil {
-// 		t.Fail()
-// 	}
+	fqfile, err := Open("tt")
+	if err != nil {
+		t.Fail()
+	}
 
-// 	for _ = range fqfile.Load() {
-// 		t.Fail()
-// 	}
-// }
+	for _ = range fqfile.Iter() {
+		t.Fail()
+	}
+	if err := fqfile.Err(); err == nil {
+		t.Fail()
+	}
+}
 
-// func Test_FastqFile_emptyfile(t *testing.T) {
-// 	o, err := xopen.Xcreate("tt")
-// 	if err != nil {
-// 		t.Error("Test FastqFile emptyfile Xcreate Error:", err)
-// 	}
-// 	o.Close()
-// 	defer os.Remove("tt")
+func Test_FastqFile_emptyfile(t *testing.T) {
+	o, err := xopen.Xcreate("tt")
+	if err != nil {
+		t.Error("Test FastqFile emptyfile Xcreate Error:", err)
+	}
+	o.Close()
+	defer os.Remove("tt")
 
-// 	fqfile, err := Open("tt")
-// 	if err != nil {
-// 		t.Error("Test FastqFile emptyfile Open Error:", err)
-// 	}
-// 	for fq := range fqfile.Iter() {
-// 		t.Error("Test FastqFile emptyfile read data Error:", fq)
-// 	}
-// }
+	fqfile, err := Open("tt")
+	if err != nil {
+		t.Error("Test FastqFile emptyfile Open Error:", err)
+	}
+	for fq := range fqfile.Iter() {
+		t.Error("Test FastqFile emptyfile read data Error:", fq)
+	}
+}
 
-// func Test_Load_txt(t *testing.T) {
-// 	create_test_fastq_file(test_fq_filename)
-// 	defer os.Remove(test_fq_filename)
-// 	fqch, errch := Load(test_fq_filename)
-// 	for {
-// 		select {
-// 		case fq, ok := <-fqch:
-// 			if !ok {
-// 				fqch = nil
-// 			} else if !checkFq(fq) {
-// 				t.Error("Test Load txt fq error", fq)
-// 			}
-// 			t.Log(fq)
-// 		case err, ok := <-errch:
-// 			if !ok {
-// 				errch = nil
-// 			} else {
-// 				t.Error("Test Load txt error:", err)
-// 			}
-// 		}
-// 		if fqch == nil && errch == nil {
-// 			break
-// 		}
-// 	}
-// }
+func Test_Load_txt(t *testing.T) {
+	create_test_fastq_file(test_fq_filename)
+	defer os.Remove(test_fq_filename)
+	fqch, errch := Load(test_fq_filename)
+	for {
+		select {
+		case fq, ok := <-fqch:
+			if !ok {
+				fqch = nil
+			} else if !checkFq(fq) {
+				t.Error("Test Load txt fq error", fq)
+			}
+			t.Log(fq)
+		case err, ok := <-errch:
+			if !ok {
+				errch = nil
+			} else {
+				t.Error("Test Load txt error:", err)
+			}
+		}
+		if fqch == nil && errch == nil {
+			break
+		}
+	}
+}
 
-// func Test_Load_gz(t *testing.T) {
-// 	filename := test_fq_filename + ".gz"
-// 	create_test_fastq_file(filename)
-// 	defer os.Remove(filename)
-// 	fqs, err := Load(filename)
-// 	if err != nil {
-// 		t.Fail()
-// 	}
-// 	for fq := range fqs {
-// 		if checkFq(fq) {
-// 			t.Fail()
-// 		}
-// 	}
-// }
+func Test_Load_gz(t *testing.T) {
+	filename := test_fq_filename + ".gz"
+	create_test_fastq_file(filename)
+	defer os.Remove(filename)
+	fqch, errch := Load(filename)
+	for {
+		select {
+		case fq, ok := <-fqch:
+			if !ok {
+				fqch = nil
+			} else if !checkFq(fq) {
+				t.Error("Test Load gz fq error", fq)
+			}
+			t.Log(fq)
+		case err, ok := <-errch:
+			if !ok {
+				errch = nil
+			} else {
+				t.Error("Test Load gz error:", err)
+			}
+		}
+		if fqch == nil && errch == nil {
+			break
+		}
+	}
+}
 
-// func Test_Load_nil(t *testing.T) {
-// 	_, err := Load("this is not a exit file")
-// 	if err == nil {
-// 		t.Fail()
-// 	}
-// }
+func Test_Load_nil(t *testing.T) {
+	_, errch := Load("this is not a exit file")
 
-// func Test_Loads_txt(t *testing.T) {
-// 	create_test_fastq_file(test_fq_filename)
-// 	defer os.Remove(test_fq_filename)
-// 	fqs, err := Loads(test_fq_filename, test_fq_filename)
-// 	if err != nil {
-// 		t.Fail()
-// 	}
-// 	for fq := range fqs {
-// 		if fq.Name != test_fq_name || fq.Seq != test_fq_seq || fq.Qual != test_fq_qual {
-// 			t.Fail()
-// 		}
-// 	}
-// }
+	if err := <-errch; err == nil {
+		t.Fail()
+	}
+}
 
-// func Test_Loads_gz(t *testing.T) {
-// 	filename := test_fq_filename + ".gz"
-// 	create_test_fastq_file(filename)
-// 	defer os.Remove(filename)
-// 	fqs, err := Loads(filename, filename)
-// 	if err != nil {
-// 		t.Fail()
-// 	}
-// 	for fq := range fqs {
-// 		if fq.Name != test_fq_name || fq.Seq != test_fq_seq || fq.Qual != test_fq_qual {
-// 			t.Fail()
-// 		}
-// 	}
-// }
+func Test_Load_txts(t *testing.T) {
+	create_test_fastq_file(test_fq_filename)
+	defer os.Remove(test_fq_filename)
+	fqch, errch := Load(test_fq_filename, test_fq_filename)
+	for {
+		select {
+		case fq, ok := <-fqch:
+			if !ok {
+				fqch = nil
+			} else if !checkFq(fq) {
+				t.Error("Test Load txts fq error", fq)
+			}
+			t.Log(fq)
+		case err, ok := <-errch:
+			if !ok {
+				errch = nil
+			} else {
+				t.Error("Test Load txts error:", err)
+			}
+		}
+		if fqch == nil && errch == nil {
+			break
+		}
+	}
+}
 
-// func Test_Loads_empyty_files(t *testing.T) {
-// 	if _, err := Loads(); err == nil {
-// 		t.Fail()
-// 	}
-// }
+func Test_Loads_gzs(t *testing.T) {
+	filename := test_fq_filename + ".gz"
+	create_test_fastq_file(filename)
+	defer os.Remove(filename)
+	fqch, errch := Load(filename, filename)
+	for {
+		select {
+		case fq, ok := <-fqch:
+			if !ok {
+				fqch = nil
+			} else if !checkFq(fq) {
+				t.Error("Test Load gzs fq error", fq)
+			}
+			t.Log(fq)
+		case err, ok := <-errch:
+			if !ok {
+				errch = nil
+			} else {
+				t.Error("Test Load gzs error:", err)
+			}
+		}
+		if fqch == nil && errch == nil {
+			break
+		}
+	}
+}
 
-// func Test_Loads_nil(t *testing.T) {
-// 	if _, err := Loads("no an exists file", "none file"); err == nil {
-// 		t.Fail()
-// 	}
-// }
+func Test_Load_empyty_files(t *testing.T) {
+	_, errch := Load()
+	if err := <-errch; err != ErrEmptyInputFile {
+		t.Fail()
+	}
+}
+
+func Test_Loads_nil(t *testing.T) {
+	_, errch := Load("no an exists file", "none file")
+	if err := <-errch; err == nil {
+		t.Fail()
+	}
+}
